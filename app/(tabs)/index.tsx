@@ -1,113 +1,145 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  TextInput,
-  Platform,
   Pressable,
+  Platform,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import Colors from "@/constants/colors";
-import { CRYPTIDS, Cryptid } from "@/constants/data";
-import { CryptidCard } from "@/components/CryptidCard";
+import { useChats, BURN_LABELS } from "@/context/chats";
 
-const CATEGORIES = ["All", "Humanoid", "Aerial", "Aquatic", "Canine", "Unknown"] as const;
+function timeAgo(ts: number): string {
+  const diffSec = Math.floor((Date.now() - ts) / 1000);
+  if (diffSec < 60) return "just now";
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+  return `${Math.floor(diffSec / 86400)}d ago`;
+}
 
-export default function FieldGuideScreen() {
+export default function ChatsScreen() {
   const insets = useSafeAreaInsets();
-  const [search, setSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const { conversations, deleteConversation } = useChats();
+  const topPad = Platform.OS === "web" ? 67 : insets.top;
 
-  const filtered = CRYPTIDS.filter((c) => {
-    const matchesSearch =
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      (c.nickname ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      c.region.toLowerCase().includes(search.toLowerCase());
-    const matchesCat =
-      selectedCategory === "All" || c.category === selectedCategory;
-    return matchesSearch && matchesCat;
+  const sorted = [...conversations].sort((a, b) => {
+    const aLast = a.messages[a.messages.length - 1]?.timestamp ?? a.createdAt;
+    const bLast = b.messages[b.messages.length - 1]?.timestamp ?? b.createdAt;
+    return bLast - aLast;
   });
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const handleDelete = (id: string, name: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      "Burn Conversation",
+      `Permanently destroy all messages with "${name}"? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Burn",
+          style: "destructive",
+          onPress: () => deleteConversation(id),
+        },
+      ]
+    );
+  };
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
       {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.eyebrow}>CLASSIFIED DATABASE</Text>
-          <Text style={styles.title}>Field Guide</Text>
+        <View style={styles.headerLeft}>
+          <View style={styles.secureIndicator}>
+            <View style={styles.secureLight} />
+            <Text style={styles.secureText}>SECURE</Text>
+          </View>
+          <Text style={styles.title}>Chats</Text>
         </View>
-        <View style={styles.headerBadge}>
-          <Text style={styles.headerBadgeText}>{CRYPTIDS.length}</Text>
-        </View>
+        <Pressable
+          style={({ pressed }) => [styles.newBtn, { opacity: pressed ? 0.8 : 1 }]}
+          onPress={() => router.push("/new")}
+        >
+          <Ionicons name="add" size={22} color={Colors.background} />
+        </Pressable>
       </View>
 
-      {/* Search */}
-      <View style={styles.searchRow}>
-        <View style={styles.searchBox}>
-          <Ionicons name="search" size={16} color={Colors.textMuted} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search cryptids..."
-            placeholderTextColor={Colors.textMuted}
-            value={search}
-            onChangeText={setSearch}
-            returnKeyType="search"
-          />
-          {search.length > 0 && (
-            <Pressable onPress={() => setSearch("")}>
-              <Ionicons name="close-circle" size={16} color={Colors.textMuted} />
-            </Pressable>
-          )}
-        </View>
-      </View>
-
-      {/* Category Filter */}
       <FlatList
-        horizontal
-        data={CATEGORIES}
-        keyExtractor={(item) => item}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterList}
-        renderItem={({ item }) => {
-          const active = item === selectedCategory;
-          return (
-            <Pressable
-              style={[styles.filterChip, active && styles.filterChipActive]}
-              onPress={() => setSelectedCategory(item)}
-            >
-              <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
-                {item}
-              </Text>
-            </Pressable>
-          );
-        }}
-      />
-
-      {/* List */}
-      <FlatList
-        data={filtered}
+        data={sorted}
         keyExtractor={(item) => item.id}
+        scrollEnabled={!!sorted.length}
         contentContainerStyle={[
           styles.list,
           { paddingBottom: Platform.OS === "web" ? 84 + 16 : insets.bottom + 16 },
         ]}
         showsVerticalScrollIndicator={false}
-        scrollEnabled={!!filtered.length}
-        renderItem={({ item, index }) => (
-          <CryptidCard cryptid={item} index={index} />
-        )}
+        renderItem={({ item }) => {
+          const lastMsg = item.messages[item.messages.length - 1];
+          const msgCount = item.messages.length;
+          const lastTime = lastMsg?.timestamp ?? item.createdAt;
+          return (
+            <Pressable
+              style={({ pressed }) => [styles.chatRow, { opacity: pressed ? 0.85 : 1 }]}
+              onPress={() => router.push({ pathname: "/chat/[id]", params: { id: item.id } })}
+              onLongPress={() => handleDelete(item.id, item.name)}
+            >
+              {/* Avatar */}
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {item.name.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+
+              <View style={styles.chatInfo}>
+                <View style={styles.chatTop}>
+                  <Text style={styles.chatName} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.chatTime}>{timeAgo(lastTime)}</Text>
+                </View>
+                <View style={styles.chatBottom}>
+                  <Text style={styles.chatPreview} numberOfLines={1}>
+                    {lastMsg ? lastMsg.text : "No messages yet"}
+                  </Text>
+                  <View style={styles.chatMeta}>
+                    {item.burnTimer !== -1 && (
+                      <View style={styles.burnBadge}>
+                        <Ionicons name="flame" size={10} color={Colors.danger} />
+                        <Text style={styles.burnBadgeText}>
+                          {BURN_LABELS[item.burnTimer]}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </View>
+            </Pressable>
+          );
+        }}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name="search-outline" size={40} color={Colors.textMuted} />
-            <Text style={styles.emptyTitle}>No cryptids found</Text>
-            <Text style={styles.emptyText}>Try a different search or category</Text>
+            <View style={styles.emptyIcon}>
+              <Ionicons name="lock-closed-outline" size={36} color={Colors.textMuted} />
+            </View>
+            <Text style={styles.emptyTitle}>No active channels</Text>
+            <Text style={styles.emptyText}>Start an encrypted conversation</Text>
+            <Pressable
+              style={({ pressed }) => [styles.emptyBtn, { opacity: pressed ? 0.8 : 1 }]}
+              onPress={() => router.push("/new")}
+            >
+              <Ionicons name="add" size={16} color={Colors.background} />
+              <Text style={styles.emptyBtnText}>New Channel</Text>
+            </Pressable>
           </View>
         }
+        ItemSeparatorComponent={() => (
+          <View style={styles.separator} />
+        )}
       />
     </View>
   );
@@ -123,16 +155,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 16,
+    paddingTop: 14,
+    paddingBottom: 18,
   },
-  eyebrow: {
+  headerLeft: {
+    gap: 4,
+  },
+  secureIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  secureLight: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.green,
+  },
+  secureText: {
     fontSize: 10,
-    fontWeight: "600",
-    color: Colors.primary,
-    fontFamily: "Inter_600SemiBold",
+    fontWeight: "700",
+    color: Colors.green,
+    fontFamily: "Inter_700Bold",
     letterSpacing: 2,
-    marginBottom: 2,
   },
   title: {
     fontSize: 28,
@@ -141,78 +186,117 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     letterSpacing: -0.5,
   },
-  headerBadge: {
-    backgroundColor: Colors.primaryGlow,
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: Colors.primary + "40",
+  newBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  headerBadgeText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: Colors.primary,
-    fontFamily: "Inter_700Bold",
+  list: {
+    paddingHorizontal: 16,
   },
-  searchRow: {
-    paddingHorizontal: 20,
-    marginBottom: 12,
-  },
-  searchBox: {
+  chatRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 6,
+    gap: 12,
+    borderRadius: 14,
+  },
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: Colors.surfaceHigh,
     borderWidth: 1,
     borderColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: Colors.textPrimary,
-    fontFamily: "Inter_400Regular",
-  },
-  filterList: {
-    paddingHorizontal: 20,
-    gap: 8,
-    marginBottom: 16,
-  },
-  filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  filterChipActive: {
-    backgroundColor: Colors.primaryGlow,
-    borderColor: Colors.primary + "60",
-  },
-  filterChipText: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    fontFamily: "Inter_500Medium",
-  },
-  filterChipTextActive: {
+  avatarText: {
+    fontSize: 20,
+    fontWeight: "600",
     color: Colors.primary,
     fontFamily: "Inter_600SemiBold",
   },
-  list: {
-    paddingHorizontal: 20,
-    paddingTop: 4,
+  chatInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  chatTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  chatName: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    fontFamily: "Inter_600SemiBold",
+  },
+  chatTime: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    fontFamily: "Inter_400Regular",
+  },
+  chatBottom: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  chatPreview: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.textSecondary,
+    fontFamily: "Inter_400Regular",
+  },
+  chatMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  burnBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: Colors.dangerGlow,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  burnBadgeText: {
+    fontSize: 10,
+    color: Colors.danger,
+    fontFamily: "Inter_600SemiBold",
+  },
+  separator: {
+    height: 1,
+    backgroundColor: Colors.borderLight,
+    marginLeft: 68,
+    marginRight: 6,
   },
   empty: {
     alignItems: "center",
-    paddingTop: 60,
-    gap: 10,
+    paddingTop: 80,
+    gap: 12,
+  },
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: 4,
   },
   emptyTitle: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: "600",
     color: Colors.textSecondary,
     fontFamily: "Inter_600SemiBold",
@@ -221,5 +305,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textMuted,
     fontFamily: "Inter_400Regular",
+  },
+  emptyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 22,
+    paddingVertical: 13,
+    borderRadius: 24,
+    marginTop: 10,
+  },
+  emptyBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.background,
+    fontFamily: "Inter_600SemiBold",
   },
 });

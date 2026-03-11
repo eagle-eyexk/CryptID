@@ -13,21 +13,17 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { queryClient } from "@/lib/query-client";
-import { SightingsProvider } from "@/context/sightings";
+import { AuthProvider } from "@/context/auth";
+import { ChatsProvider } from "@/context/chats";
 
 SplashScreen.preventAutoHideAsync();
 
 function RootLayoutNav() {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="cryptid/[id]"
-        options={{
-          headerShown: false,
-          presentation: "card",
-        }}
-      />
+      <Stack.Screen name="chat/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="new" options={{ headerShown: false, presentation: "modal" }} />
     </Stack>
   );
 }
@@ -51,13 +47,15 @@ export default function RootLayout() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <SightingsProvider>
-          <GestureHandlerRootView>
-            <KeyboardProvider>
-              <RootLayoutNav />
-            </KeyboardProvider>
-          </GestureHandlerRootView>
-        </SightingsProvider>
+        <AuthProvider>
+          <ChatsProvider>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <KeyboardProvider>
+                <RootLayoutNav />
+              </KeyboardProvider>
+            </GestureHandlerRootView>
+          </ChatsProvider>
+        </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );

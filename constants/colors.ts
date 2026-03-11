@@ -1,40 +1,45 @@
 const Colors = {
-  background: "#0A0A0F",
-  surface: "#12121A",
-  surfaceElevated: "#1A1A26",
-  border: "#2A2A3A",
-  borderLight: "#1E1E2E",
+  background: "#070B14",
+  surface: "#0D1220",
+  surfaceElevated: "#131926",
+  surfaceHigh: "#1A2235",
+  border: "#1E2A40",
+  borderLight: "#151F30",
 
-  primary: "#4ADE80",
-  primaryDim: "#22C55E",
-  primaryGlow: "rgba(74, 222, 128, 0.15)",
-  primaryFaint: "rgba(74, 222, 128, 0.06)",
+  primary: "#00D4FF",
+  primaryDim: "#0099BB",
+  primaryGlow: "rgba(0, 212, 255, 0.12)",
+  primaryFaint: "rgba(0, 212, 255, 0.06)",
 
-  accent: "#A78BFA",
-  accentDim: "#7C3AED",
-  accentGlow: "rgba(167, 139, 250, 0.15)",
+  green: "#00FF8C",
+  greenDim: "#00C96E",
+  greenGlow: "rgba(0, 255, 140, 0.12)",
 
-  danger: "#F87171",
-  dangerGlow: "rgba(248, 113, 113, 0.15)",
+  danger: "#FF4560",
+  dangerGlow: "rgba(255, 69, 96, 0.12)",
 
-  warning: "#FBBF24",
+  warning: "#FFAA00",
 
-  textPrimary: "#F0F0F8",
-  textSecondary: "#8888AA",
-  textMuted: "#44445A",
+  sent: "#0A3A5C",
+  sentBorder: "#0D5080",
+  received: "#131926",
+  receivedBorder: "#1E2A40",
 
-  tabIconDefault: "#44445A",
-  tint: "#4ADE80",
+  textPrimary: "#E8EDF8",
+  textSecondary: "#7A8AAA",
+  textMuted: "#3A4A60",
 
-  overlay: "rgba(10, 10, 15, 0.85)",
+  tabIconDefault: "#3A4A60",
+  tint: "#00D4FF",
 
-  // Legacy compat
+  overlay: "rgba(7, 11, 20, 0.92)",
+
   light: {
-    text: "#F0F0F8",
-    background: "#0A0A0F",
-    tint: "#4ADE80",
-    tabIconDefault: "#44445A",
-    tabIconSelected: "#4ADE80",
+    text: "#E8EDF8",
+    background: "#070B14",
+    tint: "#00D4FF",
+    tabIconDefault: "#3A4A60",
+    tabIconSelected: "#00D4FF",
   },
 };
 
