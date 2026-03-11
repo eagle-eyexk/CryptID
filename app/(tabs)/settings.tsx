@@ -7,15 +7,15 @@ import {
   Pressable,
   Platform,
   Alert,
-  TextInput,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { useChats } from "@/context/chats";
+import DnaHelix from "@/components/DnaHelix";
 
 function SettingRow({
   icon,
@@ -62,65 +62,55 @@ function SettingRow({
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { pin, setPin, lock } = useAuth();
-  const { conversations, deleteConversation } = useChats();
+  const { user, logout, wipeAll } = useAuth();
+  const { conversations } = useChats();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const [changingPin, setChangingPin] = useState(false);
-  const [currentPin, setCurrentPin] = useState("");
-  const [newPin, setNewPin] = useState("");
-  const [confirmPin, setConfirmPin] = useState("");
-  const [pinError, setPinError] = useState("");
+  const [wipingAll, setWipingAll] = useState(false);
 
-  const handleChangePin = () => {
-    if (currentPin !== pin) {
-      setPinError("Current passcode is incorrect");
-      return;
-    }
-    if (newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
-      setPinError("New passcode must be 4 digits");
-      return;
-    }
-    if (newPin !== confirmPin) {
-      setPinError("Passcodes don't match");
-      return;
-    }
-    setPin(newPin);
-    setChangingPin(false);
-    setCurrentPin("");
-    setNewPin("");
-    setConfirmPin("");
-    setPinError("");
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert("Passcode Updated", "Your new passcode is active.");
-  };
+  const totalMessages = conversations.reduce(
+    (sum, c) => sum + c.messages.length,
+    0
+  );
 
-  const handleWipeAll = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+  const handleLogout = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
-      "Wipe All Data",
-      "This will permanently destroy all conversations and messages. There is no recovery.",
+      "Sign Out",
+      "Lock this device? Your identity is safe — re-enter your passphrase to unlock.",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Wipe Everything",
+          text: "Sign Out",
           style: "destructive",
           onPress: async () => {
-            for (const conv of conversations) {
-              await deleteConversation(conv.id);
-            }
-            await AsyncStorage.removeItem("cryptid_chats");
+            await logout();
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            Alert.alert("Data Wiped", "All traces removed.");
           },
         },
       ]
     );
   };
 
-  const totalMessages = conversations.reduce(
-    (sum, c) => sum + c.messages.length,
-    0
-  );
+  const handleWipeAll = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    Alert.alert(
+      "Wipe All Data",
+      "This permanently destroys your identity, all conversations and messages. Your DNA identity can only be recovered by re-registering with the same credentials.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Wipe Everything",
+          style: "destructive",
+          onPress: async () => {
+            setWipingAll(true);
+            await wipeAll();
+            setWipingAll(false);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
@@ -136,6 +126,56 @@ export default function SettingsScreen() {
           { paddingBottom: Platform.OS === "web" ? 84 + 24 : insets.bottom + 24 },
         ]}
       >
+        {/* DNA Identity Card */}
+        {user && (
+          <View style={styles.dnaCard}>
+            <View style={styles.dnaCardTop}>
+              <View style={styles.dnaCardInfo}>
+                <Text style={styles.dnaUsername}>{user.username}</Text>
+                <Text style={styles.dnaFingerprint}>
+                  {user.dnaKey.fingerprint}
+                </Text>
+                <View style={styles.dnaStatusRow}>
+                  <View style={styles.dnaStatusDot} />
+                  <Text style={styles.dnaStatusText}>Identity verified</Text>
+                </View>
+              </View>
+              <DnaHelix
+                colorPairs={user.dnaKey.colorPairs}
+                size="small"
+                speed={5000}
+              />
+            </View>
+
+            <View style={styles.dnaBases}>
+              {user.dnaKey.bases.map((base, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.dnaBaseChip,
+                    {
+                      borderColor:
+                        user.dnaKey.colorPairs[i % user.dnaKey.colorPairs.length][0] + "50",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.dnaBaseText,
+                      {
+                        color:
+                          user.dnaKey.colorPairs[i % user.dnaKey.colorPairs.length][0],
+                      },
+                    ]}
+                  >
+                    {base}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
         {/* Status Card */}
         <View style={styles.statusCard}>
           <View style={styles.statusRow}>
@@ -159,75 +199,16 @@ export default function SettingsScreen() {
         <Text style={styles.section}>SECURITY</Text>
         <View style={styles.card}>
           <SettingRow
-            icon="key-outline"
-            label="Change Passcode"
-            onPress={() => setChangingPin((v) => !v)}
+            icon="log-out-outline"
+            label="Sign Out"
+            onPress={handleLogout}
           />
-          {changingPin && (
-            <View style={styles.pinForm}>
-              <TextInput
-                style={styles.pinInput}
-                placeholder="Current passcode"
-                placeholderTextColor={Colors.textMuted}
-                value={currentPin}
-                onChangeText={setCurrentPin}
-                keyboardType="number-pad"
-                maxLength={4}
-                secureTextEntry
-              />
-              <TextInput
-                style={styles.pinInput}
-                placeholder="New 4-digit passcode"
-                placeholderTextColor={Colors.textMuted}
-                value={newPin}
-                onChangeText={setNewPin}
-                keyboardType="number-pad"
-                maxLength={4}
-                secureTextEntry
-              />
-              <TextInput
-                style={styles.pinInput}
-                placeholder="Confirm new passcode"
-                placeholderTextColor={Colors.textMuted}
-                value={confirmPin}
-                onChangeText={setConfirmPin}
-                keyboardType="number-pad"
-                maxLength={4}
-                secureTextEntry
-              />
-              {pinError ? (
-                <Text style={styles.pinError}>{pinError}</Text>
-              ) : null}
-              <View style={styles.pinButtons}>
-                <Pressable
-                  style={styles.pinCancelBtn}
-                  onPress={() => {
-                    setChangingPin(false);
-                    setCurrentPin("");
-                    setNewPin("");
-                    setConfirmPin("");
-                    setPinError("");
-                  }}
-                >
-                  <Text style={styles.pinCancelText}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.pinSaveBtn}
-                  onPress={handleChangePin}
-                >
-                  <Text style={styles.pinSaveText}>Update</Text>
-                </Pressable>
-              </View>
-            </View>
-          )}
           <View style={styles.rowSep} />
           <SettingRow
-            icon="lock-closed-outline"
-            label="Lock App"
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              lock();
-            }}
+            icon="shield-checkmark-outline"
+            label="Recovery"
+            value="Credential-based"
+            rightIcon={undefined}
           />
         </View>
 
@@ -251,7 +232,7 @@ export default function SettingsScreen() {
           <SettingRow
             icon="code-slash-outline"
             label="Version"
-            value="1.0.0"
+            value="2.0.0"
             rightIcon={undefined}
           />
         </View>
@@ -262,9 +243,15 @@ export default function SettingsScreen() {
           <SettingRow
             icon="flame-outline"
             label="Wipe All Data"
-            onPress={handleWipeAll}
+            onPress={wipingAll ? undefined : handleWipeAll}
             danger
           />
+          {wipingAll && (
+            <ActivityIndicator
+              color={Colors.danger}
+              style={{ paddingBottom: 12 }}
+            />
+          )}
         </View>
 
         <Text style={styles.footer}>
@@ -302,6 +289,70 @@ const styles = StyleSheet.create({
   },
   scroll: {
     paddingHorizontal: 20,
+  },
+  dnaCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 16,
+    marginBottom: 16,
+    gap: 12,
+  },
+  dnaCardTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  dnaCardInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  dnaUsername: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    fontFamily: "Inter_700Bold",
+  },
+  dnaFingerprint: {
+    fontSize: 13,
+    color: Colors.primary,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 2,
+  },
+  dnaStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 2,
+  },
+  dnaStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.green,
+  },
+  dnaStatusText: {
+    fontSize: 11,
+    color: Colors.green,
+    fontFamily: "Inter_500Medium",
+  },
+  dnaBases: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  dnaBaseChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    backgroundColor: Colors.surfaceElevated,
+  },
+  dnaBaseText: {
+    fontSize: 11,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 1.5,
   },
   statusCard: {
     backgroundColor: Colors.surface,
@@ -408,62 +459,6 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.borderLight,
     marginLeft: 62,
-  },
-  pinForm: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    gap: 10,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
-  },
-  pinInput: {
-    backgroundColor: Colors.surfaceElevated,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: Colors.textPrimary,
-    fontFamily: "Inter_400Regular",
-    borderWidth: 1,
-    borderColor: Colors.border,
-    letterSpacing: 6,
-  },
-  pinError: {
-    fontSize: 12,
-    color: Colors.danger,
-    fontFamily: "Inter_400Regular",
-  },
-  pinButtons: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 4,
-  },
-  pinCancelBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: Colors.surfaceElevated,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  pinCancelText: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    fontFamily: "Inter_500Medium",
-  },
-  pinSaveBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: Colors.primary,
-    alignItems: "center",
-  },
-  pinSaveText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: Colors.background,
-    fontFamily: "Inter_600SemiBold",
   },
   footer: {
     fontSize: 12,

@@ -1,45 +1,66 @@
 const Colors = {
-  background: "#070B14",
-  surface: "#0D1220",
-  surfaceElevated: "#131926",
-  surfaceHigh: "#1A2235",
+  background: "#07090F",
+  surface: "#0E1220",
+  surfaceElevated: "#141A2E",
+  surfaceHigh: "#1C2440",
   border: "#1E2A40",
-  borderLight: "#151F30",
+  borderLight: "#131C30",
 
-  primary: "#00D4FF",
-  primaryDim: "#0099BB",
-  primaryGlow: "rgba(0, 212, 255, 0.12)",
-  primaryFaint: "rgba(0, 212, 255, 0.06)",
+  // Primary – cyan / teal (summer)
+  primary: "#4ECDC4",
+  primaryDim: "#35B5AC",
+  primaryGlow: "rgba(78, 205, 196, 0.14)",
+  primaryFaint: "rgba(78, 205, 196, 0.07)",
 
-  green: "#00FF8C",
-  greenDim: "#00C96E",
-  greenGlow: "rgba(0, 255, 140, 0.12)",
+  // Accent – coral (summer)
+  accent: "#FF6B6B",
+  accentGlow: "rgba(255, 107, 107, 0.14)",
 
+  // Success / DNA
+  green: "#56CF90",
+  greenGlow: "rgba(86, 207, 144, 0.14)",
+
+  // Warnings / burn
   danger: "#FF4560",
   dangerGlow: "rgba(255, 69, 96, 0.12)",
 
-  warning: "#FFAA00",
+  warning: "#FFE66D",
 
-  sent: "#0A3A5C",
-  sentBorder: "#0D5080",
+  // Chat bubbles
+  sent: "#0D2E4A",
+  sentBorder: "#0F4A72",
   received: "#131926",
   receivedBorder: "#1E2A40",
 
-  textPrimary: "#E8EDF8",
+  // Text
+  textPrimary: "#EEF2FF",
   textSecondary: "#7A8AAA",
-  textMuted: "#3A4A60",
+  textMuted: "#374060",
 
-  tabIconDefault: "#3A4A60",
-  tint: "#00D4FF",
+  tabIconDefault: "#374060",
+  tint: "#4ECDC4",
 
-  overlay: "rgba(7, 11, 20, 0.92)",
+  overlay: "rgba(7, 9, 15, 0.92)",
 
+  // DNA summer palette
+  dna: [
+    ["#FF6B6B", "#FF8E53"],
+    ["#4ECDC4", "#26D0CE"],
+    ["#FFE66D", "#FFA826"],
+    ["#A8E6CF", "#56CF90"],
+    ["#FF8B94", "#FF5E7D"],
+    ["#C3B1E1", "#9370DB"],
+    ["#85E89D", "#4D96FF"],
+    ["#FFAAA5", "#FF91A4"],
+  ] as [string, string][],
+
+  // Legacy compat
   light: {
-    text: "#E8EDF8",
-    background: "#070B14",
-    tint: "#00D4FF",
-    tabIconDefault: "#3A4A60",
-    tabIconSelected: "#00D4FF",
+    text: "#EEF2FF",
+    background: "#07090F",
+    tint: "#4ECDC4",
+    tabIconDefault: "#374060",
+    tabIconSelected: "#4ECDC4",
   },
 };
 

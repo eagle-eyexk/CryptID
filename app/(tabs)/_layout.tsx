@@ -7,11 +7,11 @@ import { Platform, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import Colors from "@/constants/colors";
-import { LockGate } from "@/components/LockGate";
+import AuthGate from "@/components/AuthGate";
 
 function NativeTabLayout() {
   return (
-    <LockGate>
+    <AuthGate>
       <NativeTabs>
         <NativeTabs.Trigger name="index">
           <Icon sf={{ default: "bubble.left.and.bubble.right", selected: "bubble.left.and.bubble.right.fill" }} />
@@ -31,7 +31,7 @@ function ClassicTabLayout() {
   const isWeb = Platform.OS === "web";
 
   return (
-    <LockGate>
+    <AuthGate>
       <Tabs
         screenOptions={{
           headerShown: false,
@@ -78,7 +78,7 @@ function ClassicTabLayout() {
           }}
         />
       </Tabs>
-    </LockGate>
+    </AuthGate>
   );
 }
 

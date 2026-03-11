@@ -42,6 +42,7 @@ type ChatsContextType = {
   createConversation: (name: string, alias: string, burnTimer: BurnTimer) => string;
   deleteConversation: (id: string) => Promise<void>;
   sendMessage: (convId: string, text: string) => Promise<void>;
+  addAiMessage: (convId: string, text: string) => Promise<void>;
   burnAllMessages: (convId: string) => Promise<void>;
   getConversation: (id: string) => Conversation | undefined;
   isLoading: boolean;
@@ -138,12 +139,9 @@ export function ChatsProvider({ children }: { children: ReactNode }) {
       setConversations((prev) => {
         const updated = prev.map((conv) => {
           if (conv.id !== convId) return conv;
-          const msgId =
-            now.toString() + Math.random().toString(36).substr(2, 9);
+          const msgId = now.toString() + Math.random().toString(36).substr(2, 9);
           const expiresAt =
-            conv.burnTimer === -1
-              ? null
-              : now + conv.burnTimer * 1000;
+            conv.burnTimer === -1 ? null : now + conv.burnTimer * 1000;
           const userMsg: Message = {
             id: msgId,
             text,
@@ -152,52 +150,33 @@ export function ChatsProvider({ children }: { children: ReactNode }) {
             expiresAt,
             burned: false,
           };
-
-          // Auto-reply simulation for demo feel
-          const replyDelay = 1500 + Math.random() * 2000;
-          const replyId =
-            (now + replyDelay).toString() +
-            Math.random().toString(36).substr(2, 9);
-          const replyExpiresAt =
-            conv.burnTimer === -1
-              ? null
-              : now + replyDelay + conv.burnTimer * 1000;
-          const REPLIES = [
-            "Copy that.",
-            "Received.",
-            "Understood.",
-            "Stay dark.",
-            "Channel secure.",
-            "Message delivered.",
-            "Standing by.",
-            "Acknowledged.",
-            "Signal clear.",
-            "No trace.",
-          ];
-          const replyText = REPLIES[Math.floor(Math.random() * REPLIES.length)];
-
-          setTimeout(() => {
-            setConversations((inner) => {
-              const withReply = inner.map((c) => {
-                if (c.id !== convId) return c;
-                const alreadyHas = c.messages.find((m) => m.id === replyId);
-                if (alreadyHas) return c;
-                const replyMsg: Message = {
-                  id: replyId,
-                  text: replyText,
-                  fromMe: false,
-                  timestamp: now + replyDelay,
-                  expiresAt: replyExpiresAt,
-                  burned: false,
-                };
-                return { ...c, messages: [...c.messages, replyMsg] };
-              });
-              save(withReply);
-              return withReply;
-            });
-          }, replyDelay);
-
           return { ...conv, messages: [...conv.messages, userMsg] };
+        });
+        save(updated);
+        return updated;
+      });
+    },
+    [save]
+  );
+
+  const addAiMessage = useCallback(
+    async (convId: string, text: string) => {
+      const now = Date.now();
+      setConversations((prev) => {
+        const updated = prev.map((conv) => {
+          if (conv.id !== convId) return conv;
+          const msgId = now.toString() + Math.random().toString(36).substr(2, 9);
+          const expiresAt =
+            conv.burnTimer === -1 ? null : now + conv.burnTimer * 1000;
+          const aiMsg: Message = {
+            id: msgId,
+            text,
+            fromMe: false,
+            timestamp: now,
+            expiresAt,
+            burned: false,
+          };
+          return { ...conv, messages: [...conv.messages, aiMsg] };
         });
         save(updated);
         return updated;
@@ -231,6 +210,7 @@ export function ChatsProvider({ children }: { children: ReactNode }) {
         createConversation,
         deleteConversation,
         sendMessage,
+        addAiMessage,
         burnAllMessages,
         getConversation,
         isLoading,
