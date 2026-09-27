@@ -13,7 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import Colors from "@/constants/colors";
-import { useChats, BURN_LABELS } from "@/context/chats";
+import { useChats } from "@/context/chats";
 
 function timeAgo(ts: number): string {
   const diffSec = Math.floor((Date.now() - ts) / 1000);
@@ -29,9 +29,7 @@ export default function ChatsScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const sorted = [...conversations].sort((a, b) => {
-    const aLast = a.messages[a.messages.length - 1]?.timestamp ?? a.createdAt;
-    const bLast = b.messages[b.messages.length - 1]?.timestamp ?? b.createdAt;
-    return bLast - aLast;
+    return b.createdAt - a.createdAt;
   });
 
   const handleDelete = (id: string, name: string) => {
@@ -57,7 +55,7 @@ export default function ChatsScreen() {
         <View style={styles.headerLeft}>
           <View style={styles.secureIndicator}>
             <View style={styles.secureLight} />
-            <Text style={styles.secureText}>SECURE</Text>
+           <Text style={styles.secureText}>MEMORY ONLY</Text>
           </View>
           <Text style={styles.title}>Chats</Text>
         </View>
@@ -79,9 +77,8 @@ export default function ChatsScreen() {
         ]}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
-          const lastMsg = item.messages[item.messages.length - 1];
-          const msgCount = item.messages.length;
-          const lastTime = lastMsg?.timestamp ?? item.createdAt;
+          const hasPendingMessage = item.messages.length > 0;
+          const lastTime = item.createdAt;
           return (
             <Pressable
               style={({ pressed }) => [styles.chatRow, { opacity: pressed ? 0.85 : 1 }]}
@@ -104,17 +101,11 @@ export default function ChatsScreen() {
                 </View>
                 <View style={styles.chatBottom}>
                   <Text style={styles.chatPreview} numberOfLines={1}>
-                    {lastMsg ? lastMsg.text : "No messages yet"}
+                    {hasPendingMessage ? "One-time message ready" : "No message history"}
                   </Text>
                   <View style={styles.chatMeta}>
-                    {item.burnTimer !== -1 && (
-                      <View style={styles.burnBadge}>
-                        <Ionicons name="flame" size={10} color={Colors.danger} />
-                        <Text style={styles.burnBadgeText}>
-                          {BURN_LABELS[item.burnTimer]}
-                        </Text>
-                      </View>
-                    )}
+                    <Ionicons name="eye-off-outline" size={13} color={Colors.textMuted} />
+                    <Text style={styles.burnBadgeText}>view once</Text>
                   </View>
                 </View>
               </View>

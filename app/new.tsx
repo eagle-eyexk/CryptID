@@ -13,16 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import Colors from "@/constants/colors";
-import { useChats, BurnTimer, BURN_LABELS } from "@/context/chats";
-
-const BURN_OPTIONS: { value: BurnTimer; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { value: 30, icon: "flash" },
-  { value: 60, icon: "timer-outline" },
-  { value: 300, icon: "time-outline" },
-  { value: 3600, icon: "hourglass-outline" },
-  { value: 86400, icon: "calendar-outline" },
-  { value: -1, icon: "infinite-outline" },
-];
+import { useChats } from "@/context/chats";
 
 export default function NewChatScreen() {
   const insets = useSafeAreaInsets();
@@ -31,7 +22,6 @@ export default function NewChatScreen() {
 
   const [name, setName] = useState("");
   const [alias, setAlias] = useState("");
-  const [burnTimer, setBurnTimer] = useState<BurnTimer>(300);
 
   const isValid = name.trim().length >= 1;
 
@@ -41,7 +31,6 @@ export default function NewChatScreen() {
     const id = createConversation(
       name.trim(),
       alias.trim() || "Unknown",
-      burnTimer
     );
     router.replace({ pathname: "/chat/[id]", params: { id } });
   };
@@ -72,7 +61,7 @@ export default function NewChatScreen() {
         <View style={styles.notice}>
           <Ionicons name="shield-checkmark" size={16} color={Colors.green} />
           <Text style={styles.noticeText}>
-            All messages are encrypted and leave no trace
+            Messages stay in memory only and disappear after one view
           </Text>
         </View>
 
@@ -111,50 +100,6 @@ export default function NewChatScreen() {
           <Text style={styles.hint}>Only visible to you</Text>
         </View>
 
-        {/* Burn Timer */}
-        <View style={styles.section}>
-          <View style={styles.labelRow}>
-            <Ionicons name="flame" size={14} color={Colors.danger} />
-            <Text style={styles.label}>Message Burn Timer</Text>
-          </View>
-          <Text style={styles.burnDesc}>
-            Messages self-destruct after this time from when they're sent
-          </Text>
-          <View style={styles.burnGrid}>
-            {BURN_OPTIONS.map(({ value, icon }) => {
-              const active = burnTimer === value;
-              return (
-                <Pressable
-                  key={value}
-                  style={({ pressed }) => [
-                    styles.burnOption,
-                    active && styles.burnOptionActive,
-                    { opacity: pressed ? 0.8 : 1 },
-                  ]}
-                  onPress={() => {
-                    setBurnTimer(value);
-                    Haptics.selectionAsync();
-                  }}
-                >
-                  <Ionicons
-                    name={icon}
-                    size={18}
-                    color={active ? Colors.danger : Colors.textMuted}
-                  />
-                  <Text
-                    style={[
-                      styles.burnLabel,
-                      active && styles.burnLabelActive,
-                    ]}
-                  >
-                    {BURN_LABELS[value]}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
         {/* Create Button */}
         <Pressable
           style={({ pressed }) => [
@@ -171,7 +116,7 @@ export default function NewChatScreen() {
             color={isValid ? Colors.background : Colors.textMuted}
           />
           <Text style={[styles.createText, !isValid && styles.createTextDisabled]}>
-            Open Encrypted Channel
+            Open View-Once Channel
           </Text>
         </Pressable>
       </ScrollView>
@@ -231,12 +176,6 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 24,
   },
-  labelRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 4,
-  },
   label: {
     fontSize: 13,
     fontWeight: "600",
@@ -268,42 +207,6 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     marginTop: 5,
     marginLeft: 4,
-  },
-  burnDesc: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    fontFamily: "Inter_400Regular",
-    marginBottom: 12,
-    lineHeight: 18,
-  },
-  burnGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  burnOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  burnOptionActive: {
-    backgroundColor: Colors.dangerGlow,
-    borderColor: Colors.danger + "50",
-  },
-  burnLabel: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    fontFamily: "Inter_500Medium",
-  },
-  burnLabelActive: {
-    color: Colors.danger,
-    fontFamily: "Inter_600SemiBold",
   },
   createBtn: {
     flexDirection: "row",

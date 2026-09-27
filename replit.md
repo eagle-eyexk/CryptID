@@ -6,17 +6,17 @@ A dark, atmospheric encrypted messaging app with self-destructing messages and P
 
 - **Frontend**: Expo Router (file-based routing), React Native
 - **Backend**: Express.js (port 5000) — serves API + landing page
-- **Storage**: AsyncStorage (local only — no server-side persistence)
-- **Auth**: PIN-based lock screen (default PIN: 1234)
+- **Storage**: None — identity, channels, and messages exist only in memory
+- **Auth**: Memory-only passphrase session
 
 ## Key Features
 
 - PIN lock screen with shake animation on wrong entry
-- Encrypted channel creation with custom self-destruct timers (30s → 24h → Never)
-- Messages auto-expire and purge based on burn timer
-- Inverted FlatList chat UI with live countdown timers on each message
+- Encrypted channel creation with view-once messages
+- Messages are deleted from memory after being visible for 1.2 seconds
+- Inverted FlatList chat UI with no message previews or history
 - Burn all messages / delete channel options
-- Settings: change PIN, wipe all data, stats
+- Settings: end session, clear memory, and privacy status
 - Dark navy theme with cyan/green accents (no-trace aesthetic)
 
 ## File Structure
@@ -53,6 +53,6 @@ constants/
 ## Notes
 
 - Default PIN is `1234`
-- All data stored in AsyncStorage — no server needed
-- Messages purge every 10s based on expiresAt timestamp
-- Auto-reply simulation gives the app a live feel
+- Nothing is written to device storage or a project database
+- Messages never call a backend or third-party AI service
+- Reloading or ending the session clears the in-memory state

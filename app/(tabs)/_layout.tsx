@@ -22,7 +22,7 @@ function NativeTabLayout() {
           <Label>Settings</Label>
         </NativeTabs.Trigger>
       </NativeTabs>
-    </LockGate>
+    </AuthGate>
   );
 }
 

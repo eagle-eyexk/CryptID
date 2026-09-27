@@ -65,7 +65,7 @@ function DnaRevealScreen({
       <View style={styles.revealInner}>
         <Text style={styles.revealTitle}>Your DNA Key</Text>
         <Text style={styles.revealSub}>
-          This pattern is unique to you. Your credentials regenerate it — no recovery code needed.
+          This pattern identifies this private session. It is never written to disk.
         </Text>
 
         <View style={styles.revealHelixWrapper}>
@@ -99,7 +99,7 @@ function DnaRevealScreen({
         </View>
 
         <Text style={styles.revealNote}>
-          Memorise your passphrase — it regenerates this identity on any device.
+          This identity exists only while the current session is open.
         </Text>
 
         <Pressable
@@ -188,7 +188,7 @@ function RegisterScreen({ onSwitch }: { onSwitch: () => void }) {
       </View>
 
       <Text style={styles.appTitle}>CryptId</Text>
-      <Text style={styles.appTagline}>Create your identity</Text>
+      <Text style={styles.appTagline}>Start a private session</Text>
 
       <RNAnimated.View style={[styles.formCard, { transform: [{ translateX: shake }] }]}>
         {/* Username */}
@@ -285,16 +285,16 @@ function RegisterScreen({ onSwitch }: { onSwitch: () => void }) {
             <ActivityIndicator color={Colors.background} size="small" />
           ) : (
             <>
-              <Text style={styles.primaryBtnText}>Generate DNA Identity</Text>
-              <Ionicons name="dna" size={18} color={Colors.background} />
+              <Text style={styles.primaryBtnText}>Start Private Session</Text>
+              <Ionicons name="finger-print" size={18} color={Colors.background} />
             </>
           )}
         </Pressable>
       </RNAnimated.View>
 
       <Pressable onPress={onSwitch} style={styles.switchRow}>
-        <Text style={styles.switchText}>Already have an identity?</Text>
-        <Text style={styles.switchLink}> Sign in</Text>
+        <Text style={styles.switchText}>Returning in this session?</Text>
+        <Text style={styles.switchLink}> Unlock</Text>
       </Pressable>
 
       <View style={{ height: Platform.OS === "web" ? 34 : insets.bottom + 16 }} />
@@ -375,7 +375,7 @@ function LoginScreen({ onSwitch }: { onSwitch: () => void }) {
       </View>
 
       <Text style={styles.appTitle}>CryptId</Text>
-      <Text style={styles.appTagline}>Verify your identity</Text>
+      <Text style={styles.appTagline}>Unlock this session</Text>
 
       <RNAnimated.View style={[styles.formCard, { transform: [{ translateX: shake }] }]}>
         <View style={styles.fieldGroup}>
@@ -446,14 +446,14 @@ function LoginScreen({ onSwitch }: { onSwitch: () => void }) {
         <View style={styles.recoveryHint}>
           <Ionicons name="information-circle-outline" size={14} color={Colors.textMuted} />
           <Text style={styles.recoveryText}>
-            Same credentials regenerate your DNA — no recovery code needed.
+            Sessions are memory-only. Reloading the app starts a fresh private session.
           </Text>
         </View>
       </RNAnimated.View>
 
       <Pressable onPress={onSwitch} style={styles.switchRow}>
-        <Text style={styles.switchText}>New to CryptId?</Text>
-        <Text style={styles.switchLink}> Create identity</Text>
+        <Text style={styles.switchText}>Need a fresh session?</Text>
+        <Text style={styles.switchLink}> Create one</Text>
       </Pressable>
 
       <View style={{ height: Platform.OS === "web" ? 34 : insets.bottom + 16 }} />

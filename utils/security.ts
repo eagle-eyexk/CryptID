@@ -1,22 +1,19 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-const RATE_KEY = "cryptid_rate_limit";
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MS = 30_000;
 
 // ─── Rate Limiter ────────────────────────────────────────────────────────────
 
 type RateEntry = { attempts: number; lockUntil?: number; windowStart: number };
+let rateEntry: RateEntry | null = null;
 
 export async function checkRateLimit(): Promise<{ allowed: boolean; remainingSecs: number }> {
   try {
-    const raw = await AsyncStorage.getItem(RATE_KEY);
-    if (!raw) return { allowed: true, remainingSecs: 0 };
-    const entry: RateEntry = JSON.parse(raw);
+    const entry = rateEntry;
+    if (!entry) return { allowed: true, remainingSecs: 0 };
 
     // Window expired — reset silently
     if (Date.now() - entry.windowStart > 10 * 60_000) {
-      await AsyncStorage.removeItem(RATE_KEY);
+      rateEntry = null;
       return { allowed: true, remainingSecs: 0 };
     }
     // Active lockout
@@ -26,7 +23,7 @@ export async function checkRateLimit(): Promise<{ allowed: boolean; remainingSec
     }
     if (entry.attempts >= MAX_ATTEMPTS) {
       const lockUntil = Date.now() + LOCKOUT_MS;
-      await AsyncStorage.setItem(RATE_KEY, JSON.stringify({ ...entry, lockUntil }));
+      rateEntry = { ...entry, lockUntil };
       return { allowed: false, remainingSecs: 30 };
     }
     return { allowed: true, remainingSecs: 0 };
@@ -37,24 +34,16 @@ export async function checkRateLimit(): Promise<{ allowed: boolean; remainingSec
 
 export async function recordFailedAttempt(): Promise<void> {
   try {
-    const raw = await AsyncStorage.getItem(RATE_KEY);
-    const entry: RateEntry = raw
-      ? JSON.parse(raw)
-      : { attempts: 0, windowStart: Date.now() };
+    const entry: RateEntry = rateEntry ?? { attempts: 0, windowStart: Date.now() };
     const windowExpired = Date.now() - entry.windowStart > 10 * 60_000;
     const attempts = windowExpired ? 1 : entry.attempts + 1;
     const lockUntil = attempts >= MAX_ATTEMPTS ? Date.now() + LOCKOUT_MS : undefined;
-    await AsyncStorage.setItem(
-      RATE_KEY,
-      JSON.stringify({ attempts, lockUntil, windowStart: windowExpired ? Date.now() : entry.windowStart })
-    );
+    rateEntry = { attempts, lockUntil, windowStart: windowExpired ? Date.now() : entry.windowStart };
   } catch {}
 }
 
 export async function resetRateLimit(): Promise<void> {
-  try {
-    await AsyncStorage.removeItem(RATE_KEY);
-  } catch {}
+  rateEntry = null;
 }
 
 // ─── Input Sanitization ──────────────────────────────────────────────────────

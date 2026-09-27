@@ -63,7 +63,7 @@ function SettingRow({
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { user, logout, wipeAll } = useAuth();
-  const { conversations } = useChats();
+  const { conversations, clearAllMessages } = useChats();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const [wipingAll, setWipingAll] = useState(false);
 
@@ -76,13 +76,14 @@ export default function SettingsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       "Sign Out",
-      "Lock this device? Your identity is safe — re-enter your passphrase to unlock.",
+      "End this private session? Any pending messages and channels will be cleared from memory.",
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Sign Out",
           style: "destructive",
           onPress: async () => {
+            clearAllMessages();
             await logout();
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           },
@@ -94,8 +95,8 @@ export default function SettingsScreen() {
   const handleWipeAll = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     Alert.alert(
-      "Wipe All Data",
-      "This permanently destroys your identity, all conversations and messages. Your DNA identity can only be recovered by re-registering with the same credentials.",
+      "End Session & Clear Memory",
+      "Clear the current identity, channels, and pending messages from memory? Nothing is stored on this device.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -103,6 +104,7 @@ export default function SettingsScreen() {
           style: "destructive",
           onPress: async () => {
             setWipingAll(true);
+            clearAllMessages();
             await wipeAll();
             setWipingAll(false);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -180,7 +182,7 @@ export default function SettingsScreen() {
         <View style={styles.statusCard}>
           <View style={styles.statusRow}>
             <View style={styles.statusLight} />
-            <Text style={styles.statusText}>End-to-end encrypted</Text>
+           <Text style={styles.statusText}>Memory-only private session</Text>
           </View>
           <View style={styles.statusStats}>
             <View style={styles.stat}>
@@ -206,8 +208,8 @@ export default function SettingsScreen() {
           <View style={styles.rowSep} />
           <SettingRow
             icon="shield-checkmark-outline"
-            label="Recovery"
-            value="Credential-based"
+             label="Persistence"
+             value="None"
             rightIcon={undefined}
           />
         </View>
@@ -217,15 +219,15 @@ export default function SettingsScreen() {
         <View style={styles.card}>
           <SettingRow
             icon="shield-checkmark-outline"
-            label="Protocol"
-            value="AES-256"
+           label="Message transport"
+           value="Local only"
             rightIcon={undefined}
           />
           <View style={styles.rowSep} />
           <SettingRow
             icon="eye-off-outline"
-            label="No Logs Policy"
-            value="Active"
+           label="Message retention"
+           value="View once"
             rightIcon={undefined}
           />
           <View style={styles.rowSep} />
@@ -242,7 +244,7 @@ export default function SettingsScreen() {
         <View style={styles.card}>
           <SettingRow
             icon="flame-outline"
-            label="Wipe All Data"
+             label="End Session & Clear Memory"
             onPress={wipingAll ? undefined : handleWipeAll}
             danger
           />

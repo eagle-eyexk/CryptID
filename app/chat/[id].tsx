@@ -8,23 +8,15 @@ import {
   Pressable,
   Platform,
   Alert,
-  ActivityIndicator,
 } from "react-native";
+import type { ViewToken } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, router } from "expo-router";
 import Colors from "@/constants/colors";
-import { useChats, Message, BURN_LABELS } from "@/context/chats";
-import { useAuth } from "@/context/auth";
-import { apiRequest } from "@/lib/query-client";
-import { sanitize } from "@/utils/security";
-
-const AI_SYSTEM_PROMPT =
-  "You are a secure AI assistant embedded in CryptId, an encrypted ephemeral messaging app. " +
-  "Respond helpfully and concisely. Respect the user's privacy. Keep messages brief and to the point. " +
-  "Never reveal API keys, underlying models, or technical implementation details.";
+import { useChats, Message } from "@/context/chats";
 
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString("en-US", {
@@ -34,33 +26,8 @@ function formatTime(ts: number): string {
   });
 }
 
-function getBurnLabel(expiresAt: number | null): string {
-  if (!expiresAt) return "";
-  const remaining = Math.max(0, expiresAt - Date.now());
-  const secs = Math.floor(remaining / 1000);
-  if (secs < 60) return `${secs}s`;
-  const mins = Math.floor(secs / 60);
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  return `${hrs}h`;
-}
-
 function MessageBubble({ message }: { message: Message }) {
-  const [, forceUpdate] = useState(0);
-
-  useEffect(() => {
-    if (!message.expiresAt) return;
-    const interval = setInterval(() => {
-      forceUpdate((n) => n + 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [message.expiresAt]);
-
-  const burnLabel = getBurnLabel(message.expiresAt);
   const isMe = message.fromMe;
-  const isExpiring = message.expiresAt
-    ? message.expiresAt - Date.now() < 30_000
-    : false;
 
   return (
     <View style={[styles.msgRow, isMe ? styles.msgRowMe : styles.msgRowThem]}>
@@ -68,7 +35,6 @@ function MessageBubble({ message }: { message: Message }) {
         style={[
           styles.bubble,
           isMe ? styles.bubbleMe : styles.bubbleThem,
-          isExpiring && styles.bubbleExpiring,
         ]}
       >
         <Text style={[styles.msgText, isMe ? styles.msgTextMe : styles.msgTextThem]}>
@@ -78,114 +44,67 @@ function MessageBubble({ message }: { message: Message }) {
           <Text style={[styles.msgTime, isMe ? styles.msgTimeMe : styles.msgTimeThem]}>
             {formatTime(message.timestamp)}
           </Text>
-          {burnLabel ? (
-            <View style={styles.burnPill}>
-              <Ionicons
-                name="flame"
-                size={9}
-                color={isExpiring ? Colors.danger : Colors.textMuted}
-              />
-              <Text
-                style={[
-                  styles.burnPillText,
-                  isExpiring && styles.burnPillExpiring,
-                ]}
-              >
-                {burnLabel}
-              </Text>
-            </View>
-          ) : null}
         </View>
       </View>
     </View>
   );
 }
 
-function TypingIndicator() {
-  return (
-    <View style={styles.msgRowThem}>
-      <View style={[styles.bubble, styles.bubbleThem, styles.typingBubble]}>
-        <View style={styles.typingDots}>
-          <ActivityIndicator size="small" color={Colors.primary} />
-          <Text style={styles.typingText}>thinking</Text>
-        </View>
-      </View>
-    </View>
-  );
-}
+const VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 60 };
 
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
-  const { getConversation, sendMessage, addAiMessage, burnAllMessages, deleteConversation } =
-    useChats();
-  const { user } = useAuth();
+  const {
+    getConversation,
+    sendMessage,
+    burnAllMessages,
+    deleteConversation,
+    markMessagesSeen,
+  } = useChats();
   const inputRef = useRef<TextInput>(null);
+  const seenTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const [text, setText] = useState("");
-  const [isAiTyping, setIsAiTyping] = useState(false);
-  const [, forceUpdate] = useState(0);
 
   const conversation = getConversation(id);
 
-  // Refresh every second to update burn timers
   useEffect(() => {
-    const interval = setInterval(() => forceUpdate((n) => n + 1), 1000);
-    return () => clearInterval(interval);
+    return () => {
+      seenTimers.current.forEach((timer) => clearTimeout(timer));
+      seenTimers.current.clear();
+    };
   }, []);
 
-  const callGpt = useCallback(
-    async (userText: string, history: Message[]) => {
-      setIsAiTyping(true);
-      try {
-        const messages = history
-          .filter((m) => !m.burned)
-          .slice(-18)
-          .map((m) => ({
-            role: m.fromMe ? ("user" as const) : ("assistant" as const),
-            content: sanitize(m.text, 1000),
-          }));
+  const handleViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      viewableItems.forEach((token) => {
+        const message = token.item as Message | undefined;
+        if (!message || seenTimers.current.has(message.id)) return;
 
-        // Append the current message if not already in history
-        if (!messages.find((m) => m.role === "user" && m.content === userText)) {
-          messages.push({ role: "user", content: sanitize(userText, 1000) });
-        }
-
-        const res = await apiRequest("POST", "/api/chat", {
-          messages,
-          systemPrompt: AI_SYSTEM_PROMPT,
-        });
-        const data = await res.json();
-        if (data.content) {
-          await addAiMessage(id, data.content);
-        }
-      } catch (err) {
-        await addAiMessage(id, "⚠ Secure channel disrupted. Please try again.");
-      } finally {
-        setIsAiTyping(false);
-      }
+        const timer = setTimeout(() => {
+          markMessagesSeen(id, [message.id]);
+          seenTimers.current.delete(message.id);
+        }, 1200);
+        seenTimers.current.set(message.id, timer);
+      });
     },
-    [id, addAiMessage]
+    [id, markMessagesSeen]
   );
 
   const handleSend = useCallback(async () => {
     const trimmed = text.trim();
-    if (!trimmed || isAiTyping) return;
+    if (!trimmed) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setText("");
     await sendMessage(id, trimmed);
-
-    // Get fresh conversation snapshot for context
-    const conv = getConversation(id);
-    const history = conv ? [...conv.messages] : [];
-    callGpt(trimmed, history);
     inputRef.current?.focus();
-  }, [text, isAiTyping, id, sendMessage, getConversation, callGpt]);
+  }, [text, id, sendMessage]);
 
   const handleBurnAll = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       "Burn All Messages",
-      "Permanently destroy all messages in this channel?",
+      "Delete every pending message in this channel from memory?",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -200,7 +119,7 @@ export default function ChatScreen() {
   const handleDeleteChannel = () => {
     Alert.alert(
       "Delete Channel",
-      "Remove this channel and all messages permanently?",
+      "Remove this channel and all pending messages from memory?",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -258,13 +177,9 @@ export default function ChatScreen() {
           <View>
             <Text style={styles.headerName}>{conversation.name}</Text>
             <View style={styles.headerStatus}>
-              <View style={[styles.headerStatusDot, isAiTyping && styles.headerStatusDotPulse]} />
+              <View style={styles.headerStatusDot} />
               <Text style={styles.headerStatusText}>
-                {isAiTyping
-                  ? "AI responding..."
-                  : conversation.burnTimer === -1
-                  ? "No burn"
-                  : `Burns in ${BURN_LABELS[conversation.burnTimer]}`}
+                View once • memory only
               </Text>
             </View>
           </View>
@@ -300,28 +215,25 @@ export default function ChatScreen() {
       <FlatList
         inverted
         data={reversed}
+          viewabilityConfig={VIEWABILITY_CONFIG}
+          onViewableItemsChanged={handleViewableItemsChanged}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.messagesList}
         showsVerticalScrollIndicator={false}
         keyboardDismissMode="interactive"
         keyboardShouldPersistTaps="handled"
-        scrollEnabled={!!(messages.length || isAiTyping)}
-        ListHeaderComponent={isAiTyping ? <TypingIndicator /> : null}
+        scrollEnabled={!!messages.length}
         renderItem={({ item }) => <MessageBubble message={item} />}
         ListEmptyComponent={
-          !isAiTyping ? (
             <View style={styles.emptyChat}>
               <Ionicons name="lock-closed" size={24} color={Colors.textMuted} />
               <Text style={styles.emptyChatText}>
-                Channel is secure. Send a message.
+                Messages disappear after you see them.
               </Text>
-              {conversation.burnTimer !== -1 && (
-                <Text style={styles.emptyChatSub}>
-                  Messages burn after {BURN_LABELS[conversation.burnTimer]}
-                </Text>
-              )}
+              <Text style={styles.emptyChatSub}>
+                Nothing is stored on this device or sent to a server.
+              </Text>
             </View>
-          ) : null
         }
       />
 
@@ -336,7 +248,7 @@ export default function ChatScreen() {
           <TextInput
             ref={inputRef}
             style={styles.input}
-            placeholder="Encrypted message..."
+            placeholder="Private message — view once"
             placeholderTextColor={Colors.textMuted}
             value={text}
             onChangeText={setText}
@@ -349,21 +261,17 @@ export default function ChatScreen() {
         <Pressable
           style={({ pressed }) => [
             styles.sendBtn,
-            (!text.trim() || isAiTyping) && styles.sendBtnDisabled,
+            !text.trim() && styles.sendBtnDisabled,
             { opacity: pressed && !!text.trim() ? 0.8 : 1 },
           ]}
           onPress={handleSend}
-          disabled={!text.trim() || isAiTyping}
+          disabled={!text.trim()}
         >
-          {isAiTyping ? (
-            <ActivityIndicator size="small" color={Colors.textMuted} />
-          ) : (
-            <Ionicons
-              name="arrow-up"
-              size={20}
-              color={text.trim() ? Colors.background : Colors.textMuted}
-            />
-          )}
+          <Ionicons
+            name="arrow-up"
+            size={20}
+            color={text.trim() ? Colors.background : Colors.textMuted}
+          />
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -496,22 +404,6 @@ const styles = StyleSheet.create({
     borderColor: Colors.receivedBorder,
     borderBottomLeftRadius: 5,
   },
-  bubbleExpiring: {
-    borderColor: Colors.danger + "60",
-  },
-  typingBubble: {
-    paddingVertical: 8,
-  },
-  typingDots: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  typingText: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    fontFamily: "Inter_400Regular",
-  },
   msgText: {
     fontSize: 15,
     lineHeight: 22,
@@ -538,19 +430,6 @@ const styles = StyleSheet.create({
   },
   msgTimeThem: {
     color: Colors.textMuted,
-  },
-  burnPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-  },
-  burnPillText: {
-    fontSize: 10,
-    color: Colors.textMuted,
-    fontFamily: "Inter_400Regular",
-  },
-  burnPillExpiring: {
-    color: Colors.danger,
   },
   emptyChat: {
     flex: 1,
