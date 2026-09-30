@@ -3,11 +3,13 @@ import { Tabs } from "expo-router";
 import { NativeTabs, Icon, Label } from "expo-router/unstable-native-tabs";
 import { BlurView } from "expo-blur";
 import { SymbolView } from "expo-symbols";
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, View, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import Colors from "@/constants/colors";
 import AuthGate from "@/components/AuthGate";
+import ResponsiveTabBar from "@/components/ResponsiveTabBar";
+import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 
 function NativeTabLayout() {
   return (
@@ -29,12 +31,18 @@ function NativeTabLayout() {
 function ClassicTabLayout() {
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
+  const { width } = useWindowDimensions();
+  const desktop = isWeb && width >= 900;
 
   return (
     <AuthGate>
       <Tabs
         screenOptions={{
           headerShown: false,
+          ...(isWeb ? {
+            tabBarPosition: desktop ? "left" : "bottom",
+            tabBar: (props: BottomTabBarProps) => <ResponsiveTabBar {...props} />,
+          } : {}),
           tabBarActiveTintColor: Colors.primary,
           tabBarInactiveTintColor: Colors.tabIconDefault,
           tabBarStyle: {
@@ -43,7 +51,7 @@ function ClassicTabLayout() {
             borderTopWidth: isWeb ? 1 : 0,
             borderTopColor: Colors.border,
             elevation: 0,
-            ...(isWeb ? { height: 84 } : {}),
+            ...(isWeb && !desktop ? { height: 78 } : {}),
           },
           tabBarBackground: () =>
             isIOS ? (

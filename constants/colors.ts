@@ -1,54 +1,54 @@
 const Colors = {
-  background: "#07090F",
-  surface: "#0E1220",
-  surfaceElevated: "#141A2E",
-  surfaceHigh: "#1C2440",
-  border: "#1E2A40",
-  borderLight: "#131C30",
+  background: "#071716",
+  surface: "#0D211F",
+  surfaceElevated: "#122C29",
+  surfaceHigh: "#193A35",
+  border: "#28504A",
+  borderLight: "#1A3934",
 
   // Primary – cyan / teal (summer)
-  primary: "#4ECDC4",
-  primaryDim: "#35B5AC",
-  primaryGlow: "rgba(78, 205, 196, 0.14)",
-  primaryFaint: "rgba(78, 205, 196, 0.07)",
+  primary: "#67E1D2",
+  primaryDim: "#40BDAE",
+  primaryGlow: "rgba(103, 225, 210, 0.14)",
+  primaryFaint: "rgba(103, 225, 210, 0.07)",
 
   // Accent – coral (summer)
-  accent: "#FF6B6B",
-  accentGlow: "rgba(255, 107, 107, 0.14)",
+  accent: "#FF897C",
+  accentGlow: "rgba(255, 137, 124, 0.14)",
 
   // Success / DNA
-  green: "#56CF90",
-  greenGlow: "rgba(86, 207, 144, 0.14)",
+  green: "#71DFA2",
+  greenGlow: "rgba(113, 223, 162, 0.14)",
 
   // Warnings / burn
-  danger: "#FF4560",
-  dangerGlow: "rgba(255, 69, 96, 0.12)",
+  danger: "#FF756B",
+  dangerGlow: "rgba(255, 117, 107, 0.12)",
 
   warning: "#FFE66D",
 
   // Chat bubbles
-  sent: "#0D2E4A",
-  sentBorder: "#0F4A72",
-  received: "#131926",
-  receivedBorder: "#1E2A40",
+  sent: "#17463F",
+  sentBorder: "#31786B",
+  received: "#122521",
+  receivedBorder: "#28504A",
 
   // Text
-  textPrimary: "#EEF2FF",
-  textSecondary: "#7A8AAA",
-  textMuted: "#374060",
+  textPrimary: "#E9F5EF",
+  textSecondary: "#B0C9BE",
+  textMuted: "#8BA79A",
 
-  tabIconDefault: "#374060",
-  tint: "#4ECDC4",
+  tabIconDefault: "#8BA79A",
+  tint: "#67E1D2",
 
-  overlay: "rgba(7, 9, 15, 0.92)",
+  overlay: "rgba(7, 23, 22, 0.94)",
 
   // DNA summer palette
   dna: [
-    ["#FF6B6B", "#FF8E53"],
-    ["#4ECDC4", "#26D0CE"],
-    ["#FFE66D", "#FFA826"],
-    ["#A8E6CF", "#56CF90"],
-    ["#FF8B94", "#FF5E7D"],
+    ["#FF897C", "#FF9A63"],
+    ["#67E1D2", "#37C6B7"],
+    ["#FFE18A", "#FFA826"],
+    ["#A8E6CF", "#71DFA2"],
+    ["#FF9A9D", "#FF687F"],
     ["#C3B1E1", "#9370DB"],
     ["#85E89D", "#4D96FF"],
     ["#FFAAA5", "#FF91A4"],
@@ -56,11 +56,11 @@ const Colors = {
 
   // Legacy compat
   light: {
-    text: "#EEF2FF",
-    background: "#07090F",
-    tint: "#4ECDC4",
-    tabIconDefault: "#374060",
-    tabIconSelected: "#4ECDC4",
+    text: "#E9F5EF",
+    background: "#071716",
+    tint: "#67E1D2",
+    tabIconDefault: "#8BA79A",
+    tabIconSelected: "#67E1D2",
   },
 };
 

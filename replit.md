@@ -1,23 +1,22 @@
-# CryptId — Secure Ephemeral Messenger
+# CryptId — Local, View-Once Messaging
 
-A dark, atmospheric encrypted messaging app with self-destructing messages and PIN lock screen.
+A responsive web application with native mobile support for temporary, local-only message sessions. It does not deliver messages to another person or provide end-to-end message encryption.
 
 ## Architecture
 
-- **Frontend**: Expo Router (file-based routing), React Native
-- **Backend**: Express.js (port 5000) — serves API + landing page
-- **Storage**: None — identity, channels, and messages exist only in memory
-- **Auth**: Memory-only passphrase session
+- **Frontend**: Expo Router and React Native; the web interface uses a desktop sidebar and a compact mobile tab bar
+- **Backend**: Express.js (port 5000) — serves the Expo application; no chat or identity API is registered
+- **Storage**: None — identity, channels, messages, and rate-limit state exist only in runtime memory
+- **Auth**: Memory-only passphrase identity; reload starts a fresh session
 
 ## Key Features
 
-- PIN lock screen with shake animation on wrong entry
-- Encrypted channel creation with view-once messages
-- Messages are deleted from memory after being visible for 1.2 seconds
-- Inverted FlatList chat UI with no message previews or history
-- Burn all messages / delete channel options
-- Settings: end session, clear memory, and privacy status
-- Dark navy theme with cyan/green accents (no-trace aesthetic)
+- Responsive channel list, local channel creation, chat, and settings
+- Local message composer for the current runtime only; messages are not delivered remotely
+- Messages are removed from memory about 1.2 seconds after first becoming visible
+- No message previews or retained conversation history
+- Clear pending messages, delete channels, sign out, and end the session
+- Passphrase identity with a generated session fingerprint; no identity persistence
 
 ## File Structure
 
@@ -25,24 +24,25 @@ A dark, atmospheric encrypted messaging app with self-destructing messages and P
 app/
   _layout.tsx           — Root layout with all providers
   (tabs)/
-    _layout.tsx         — Tab layout (liquid glass on iOS 26+)
-    index.tsx           — Conversations list
-    settings.tsx        — Settings + security
-  chat/[id].tsx         — Chat screen (inverted FlatList, keyboard-aware)
-  new.tsx               — New channel creation (modal)
+    _layout.tsx         — Responsive web navigation and native tabs
+    index.tsx           — Current local channels
+    settings.tsx        — Session status and memory controls
+  chat/[id].tsx         — Local view-once channel
+  new.tsx               — Local channel creation
 
 components/
-  LockGate.tsx          — PIN lock screen with keypad
+  AuthGate.tsx          — In-memory identity registration and unlock
+  ResponsiveTabBar.tsx  — Web sidebar and compact mobile navigation
+  DnaHelix.tsx          — Session identity visualization
   ErrorBoundary.tsx     — Error boundary
   ErrorFallback.tsx     — Error UI
-  KeyboardAwareScrollViewCompat.tsx
 
 context/
-  auth.tsx              — PIN authentication state
-  chats.tsx             — Conversations & messages with auto-expiry
+  auth.tsx              — In-memory passphrase identity
+  chats.tsx             — In-memory channels and messages
 
 constants/
-  colors.ts             — Dark navy theme
+  colors.ts             — CryptId color palette
 ```
 
 ## Workflows
@@ -52,7 +52,7 @@ constants/
 
 ## Notes
 
-- Default PIN is `1234`
-- Nothing is written to device storage or a project database
-- Messages never call a backend or third-party AI service
+- Nothing is written to browser or device storage or a project database
+- Message text is not sent to the backend or a third-party AI service
+- A local channel is a single-runtime experience, not a remote conversation
 - Reloading or ending the session clears the in-memory state

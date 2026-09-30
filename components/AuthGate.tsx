@@ -27,8 +27,7 @@ import {
   recordFailedAttempt,
   resetRateLimit,
 } from "@/utils/security";
-import { generateDnaKey } from "@/utils/dna";
-import { DEFAULT_DNA_COLORS } from "@/utils/dna";
+import { generateDnaKey, DEFAULT_DNA_COLORS } from "@/utils/dna";
 import type { DnaKey } from "@/utils/dna";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -64,6 +63,7 @@ function DnaRevealScreen({
     <View style={[styles.revealContainer, { paddingTop: Platform.OS === "web" ? 67 : insets.top }]}>
       <View style={styles.revealInner}>
         <Text style={styles.revealTitle}>Your DNA Key</Text>
+        {username ? <Text style={styles.revealUsername}>Created for @{username}</Text> : null}
         <Text style={styles.revealSub}>
           This pattern identifies this private session. It is never written to disk.
         </Text>
@@ -99,8 +99,9 @@ function DnaRevealScreen({
         </View>
 
         <Text style={styles.revealNote}>
-          This identity exists only while the current session is open.
+          This fingerprint describes this local identity. It does not prove who is on another device.
         </Text>
+        <Text style={styles.revealRuntime}>Keep this view in mind. The identity exists only while this session is open.</Text>
 
         <Pressable
           style={({ pressed }) => [styles.continueBtn, { opacity: pressed ? 0.85 : 1 }]}
@@ -116,7 +117,13 @@ function DnaRevealScreen({
 
 // ─── Register Screen ──────────────────────────────────────────────────────────
 
-function RegisterScreen({ onSwitch }: { onSwitch: () => void }) {
+function RegisterScreen({
+  onSwitch,
+  onReveal,
+}: {
+  onSwitch: () => void;
+  onReveal: (key: DnaKey, username: string) => void;
+}) {
   const insets = useSafeAreaInsets();
   const { register } = useAuth();
   const [username, setUsername] = useState("");
@@ -126,7 +133,6 @@ function RegisterScreen({ onSwitch }: { onSwitch: () => void }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [previewDna, setPreviewDna] = useState<DnaKey | null>(null);
-  const [revealDna, setRevealDna] = useState<DnaKey | null>(null);
   const { shake, trigger } = useShakeAnim();
 
   // Live DNA preview while typing
@@ -160,13 +166,9 @@ function RegisterScreen({ onSwitch }: { onSwitch: () => void }) {
       setError(result.error);
       trigger();
     } else {
-      setRevealDna(dnaKey);
+      onReveal(dnaKey, username.trim());
     }
   };
-
-  if (revealDna) {
-    return <DnaRevealScreen dnaKey={revealDna} username={username} onContinue={() => {}} />;
-  }
 
   return (
     <ScrollView
@@ -188,7 +190,8 @@ function RegisterScreen({ onSwitch }: { onSwitch: () => void }) {
       </View>
 
       <Text style={styles.appTitle}>CryptId</Text>
-      <Text style={styles.appTagline}>Start a private session</Text>
+      <Text style={styles.appTagline}>A quiet space for fleeting exchanges</Text>
+      <Text style={styles.authNote}>Local session only · Nothing is sent to another device</Text>
 
       <RNAnimated.View style={[styles.formCard, { transform: [{ translateX: shake }] }]}>
         {/* Username */}
@@ -375,7 +378,8 @@ function LoginScreen({ onSwitch }: { onSwitch: () => void }) {
       </View>
 
       <Text style={styles.appTitle}>CryptId</Text>
-      <Text style={styles.appTagline}>Unlock this session</Text>
+      <Text style={styles.appTagline}>Return to this runtime session</Text>
+      <Text style={styles.authNote}>Your identity exists only in this running app</Text>
 
       <RNAnimated.View style={[styles.formCard, { transform: [{ translateX: shake }] }]}>
         <View style={styles.fieldGroup}>
@@ -466,6 +470,7 @@ function LoginScreen({ onSwitch }: { onSwitch: () => void }) {
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const { isLoading, hasAccount, isAuthenticated } = useAuth();
   const [showRegister, setShowRegister] = useState(false);
+  const [revealDna, setRevealDna] = useState<{ key: DnaKey; username: string } | null>(null);
 
   // Decide default screen: if no account → register; otherwise → login
   useEffect(() => {
@@ -483,9 +488,24 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
+  if (revealDna) {
+    return (
+      <DnaRevealScreen
+        dnaKey={revealDna.key}
+        username={revealDna.username}
+        onContinue={() => setRevealDna(null)}
+      />
+    );
+  }
+
   if (!isAuthenticated) {
     if (showRegister) {
-      return <RegisterScreen onSwitch={() => setShowRegister(false)} />;
+      return (
+        <RegisterScreen
+          onSwitch={() => setShowRegister(false)}
+          onReveal={(key, username) => setRevealDna({ key, username })}
+        />
+      );
     }
     return <LoginScreen onSwitch={() => setShowRegister(true)} />;
   }
@@ -518,20 +538,31 @@ const styles = StyleSheet.create({
     fontSize: 34,
     fontWeight: "700",
     color: Colors.textPrimary,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Georgia",
     letterSpacing: 3,
     marginTop: 8,
   },
   appTagline: {
     fontSize: 14,
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
     fontFamily: "Inter_400Regular",
     marginBottom: 24,
     letterSpacing: 1,
     textTransform: "uppercase",
   },
+  authNote: {
+    maxWidth: 420,
+    textAlign: "center",
+    fontSize: 13,
+    lineHeight: 19,
+    color: Colors.textSecondary,
+    fontFamily: "Inter_400Regular",
+    marginTop: -16,
+    marginBottom: 22,
+  },
   formCard: {
     width: "100%",
+    maxWidth: 470,
     backgroundColor: Colors.surface,
     borderRadius: 20,
     padding: 20,
@@ -545,7 +576,7 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: 10,
     fontWeight: "600",
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
     fontFamily: "Inter_600SemiBold",
     letterSpacing: 1.5,
   },
@@ -665,14 +696,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 24,
     paddingBottom: 40,
+    justifyContent: "center",
+    maxWidth: 620,
+    alignSelf: "center",
+    width: "100%",
   },
   revealTitle: {
     fontSize: 28,
     fontWeight: "700",
     color: Colors.textPrimary,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Georgia",
     marginBottom: 8,
     letterSpacing: 1,
+  },
+  revealUsername: {
+    color: Colors.primary,
+    fontFamily: "Inter_500Medium",
+    fontSize: 12,
+    letterSpacing: 0.4,
+    marginBottom: 8,
   },
   revealSub: {
     fontSize: 14,
@@ -723,12 +765,20 @@ const styles = StyleSheet.create({
   },
   revealNote: {
     fontSize: 13,
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
     fontFamily: "Inter_400Regular",
     textAlign: "center",
     lineHeight: 19,
     marginVertical: 12,
     paddingHorizontal: 8,
+  },
+  revealRuntime: {
+    color: Colors.textSecondary,
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: "center",
+    marginBottom: 8,
   },
   continueBtn: {
     flexDirection: "row",

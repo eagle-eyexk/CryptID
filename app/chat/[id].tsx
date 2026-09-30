@@ -1,15 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TextInput,
-  Pressable,
-  Platform,
-  Alert,
-} from "react-native";
-import type { ViewToken } from "react-native";
+import { View, Text, StyleSheet, FlatList, TextInput, Pressable, Platform, Alert, useWindowDimensions } from "react-native";
+import type { ViewToken, NativeSyntheticEvent, TextInputKeyPressEventData } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,31 +10,17 @@ import Colors from "@/constants/colors";
 import { useChats, Message } from "@/context/chats";
 
 function formatTime(ts: number): string {
-  return new Date(ts).toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+  return new Date(ts).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
 function MessageBubble({ message }: { message: Message }) {
-  const isMe = message.fromMe;
-
   return (
-    <View style={[styles.msgRow, isMe ? styles.msgRowMe : styles.msgRowThem]}>
-      <View
-        style={[
-          styles.bubble,
-          isMe ? styles.bubbleMe : styles.bubbleThem,
-        ]}
-      >
-        <Text style={[styles.msgText, isMe ? styles.msgTextMe : styles.msgTextThem]}>
-          {message.text}
-        </Text>
+    <View style={[styles.msgRow, message.fromMe ? styles.msgRowMe : styles.msgRowThem]}>
+      <View style={[styles.bubble, message.fromMe ? styles.bubbleMe : styles.bubbleThem]}>
+        <Text style={styles.msgText}>{message.text}</Text>
         <View style={styles.msgMeta}>
-          <Text style={[styles.msgTime, isMe ? styles.msgTimeMe : styles.msgTimeThem]}>
-            {formatTime(message.timestamp)}
-          </Text>
+          <Text style={styles.msgTime}>{formatTime(message.timestamp)}</Text>
+          <Ionicons name="eye-off-outline" size={11} color={Colors.textMuted} />
         </View>
       </View>
     </View>
@@ -55,41 +32,31 @@ const VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 60 };
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
-  const {
-    getConversation,
-    sendMessage,
-    burnAllMessages,
-    deleteConversation,
-    markMessagesSeen,
-  } = useChats();
+  const { width } = useWindowDimensions();
+  const desktop = Platform.OS === "web" && width >= 900;
+  const { getConversation, sendMessage, burnAllMessages, deleteConversation, markMessagesSeen } = useChats();
   const inputRef = useRef<TextInput>(null);
   const seenTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const [text, setText] = useState("");
-
+  const [menuOpen, setMenuOpen] = useState(false);
   const conversation = getConversation(id);
 
-  useEffect(() => {
-    return () => {
-      seenTimers.current.forEach((timer) => clearTimeout(timer));
-      seenTimers.current.clear();
-    };
+  useEffect(() => () => {
+    seenTimers.current.forEach((timer) => clearTimeout(timer));
+    seenTimers.current.clear();
   }, []);
 
-  const handleViewableItemsChanged = useCallback(
-    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      viewableItems.forEach((token) => {
-        const message = token.item as Message | undefined;
-        if (!message || seenTimers.current.has(message.id)) return;
-
-        const timer = setTimeout(() => {
-          markMessagesSeen(id, [message.id]);
-          seenTimers.current.delete(message.id);
-        }, 1200);
-        seenTimers.current.set(message.id, timer);
-      });
-    },
-    [id, markMessagesSeen]
-  );
+  const handleViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    viewableItems.forEach((token) => {
+      const message = token.item as Message | undefined;
+      if (!message || seenTimers.current.has(message.id)) return;
+      const timer = setTimeout(() => {
+        markMessagesSeen(id, [message.id]);
+        seenTimers.current.delete(message.id);
+      }, 1200);
+      seenTimers.current.set(message.id, timer);
+    });
+  }, [id, markMessagesSeen]);
 
   const handleSend = useCallback(async () => {
     const trimmed = text.trim();
@@ -100,46 +67,45 @@ export default function ChatScreen() {
     inputRef.current?.focus();
   }, [text, id, sendMessage]);
 
+  const confirmAction = (title: string, message: string, action: () => void, destructiveLabel: string) => {
+    setMenuOpen(false);
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm(`${title}\n\n${message}`)) action();
+      return;
+    }
+    Alert.alert(title, message, [
+      { text: "Cancel", style: "cancel" },
+      { text: destructiveLabel, style: "destructive", onPress: action },
+    ]);
+  };
+
   const handleBurnAll = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      "Burn All Messages",
-      "Delete every pending message in this channel from memory?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Burn",
-          style: "destructive",
-          onPress: () => burnAllMessages(id),
-        },
-      ]
-    );
+    confirmAction("Clear messages", "Remove every pending message in this channel from this runtime?", () => { void burnAllMessages(id); }, "Clear");
   };
 
   const handleDeleteChannel = () => {
-    Alert.alert(
-      "Delete Channel",
-      "Remove this channel and all pending messages from memory?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            deleteConversation(id);
-            router.back();
-          },
-        },
-      ]
-    );
+    confirmAction("Delete channel", "Remove this channel and its pending messages from the current runtime?", () => {
+      void deleteConversation(id);
+      router.back();
+    }, "Delete");
+  };
+
+  const handleKeyPress = (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+    const nativeEvent = event.nativeEvent as TextInputKeyPressEventData & { shiftKey?: boolean };
+    if (Platform.OS === "web" && nativeEvent.key === "Enter" && !nativeEvent.shiftKey) {
+      event.preventDefault();
+      void handleSend();
+    }
   };
 
   if (!conversation) {
     return (
       <View style={styles.notFound}>
-        <Text style={styles.notFoundText}>Channel not found</Text>
-        <Pressable onPress={() => router.back()}>
-          <Text style={styles.backLink}>Go back</Text>
+        <View style={styles.notFoundMark}><Ionicons name="close" size={20} color={Colors.accent} /></View>
+        <Text style={styles.notFoundText}>This channel is no longer in memory.</Text>
+        <Pressable onPress={() => router.replace("/(tabs)")}>
+          <Text style={styles.backLink}>Return to channels</Text>
         </Pressable>
       </View>
     );
@@ -149,345 +115,140 @@ export default function ChatScreen() {
   const reversed = [...messages].reverse();
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior="padding"
-      keyboardVerticalOffset={0}
-    >
-      {/* Header */}
-      <View
-        style={[
-          styles.header,
-          { paddingTop: (Platform.OS === "web" ? 67 : insets.top) + 8 },
-        ]}
-      >
-        <Pressable
-          style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.7 : 1 }]}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={20} color={Colors.textPrimary} />
-        </Pressable>
-
-        <View style={styles.headerCenter}>
-          <View style={styles.headerAvatar}>
-            <Text style={styles.headerAvatarText}>
-              {conversation.name.charAt(0).toUpperCase()}
-            </Text>
-          </View>
-          <View>
-            <Text style={styles.headerName}>{conversation.name}</Text>
-            <View style={styles.headerStatus}>
-              <View style={styles.headerStatusDot} />
-              <Text style={styles.headerStatusText}>
-                View once • memory only
-              </Text>
+    <KeyboardAvoidingView style={styles.container} behavior="padding" keyboardVerticalOffset={0}>
+      <View style={[styles.header, { paddingTop: Platform.OS === "web" ? (desktop ? 28 : 12) : insets.top + 8 }]}>
+        <View style={styles.headerInner}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Back to channels" style={styles.backBtn} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={19} color={Colors.textPrimary} />
+          </Pressable>
+          <View style={styles.headerCenter}>
+            <View style={styles.headerAvatar}><Text style={styles.headerAvatarText}>{conversation.name.charAt(0).toUpperCase()}</Text></View>
+            <View style={styles.headerIdentity}>
+              <Text style={styles.headerName}>{conversation.name}</Text>
+              <View style={styles.headerStatus}><View style={styles.headerStatusDot} /><Text style={styles.headerStatusText}>Local channel · view once</Text></View>
             </View>
           </View>
+          <Pressable accessibilityRole="button" accessibilityLabel="Channel options" style={styles.menuBtn} onPress={() => setMenuOpen((open) => !open)}>
+            <Ionicons name="ellipsis-horizontal" size={20} color={Colors.textPrimary} />
+          </Pressable>
         </View>
-
-        <Pressable
-          style={({ pressed }) => [styles.menuBtn, { opacity: pressed ? 0.7 : 1 }]}
-          onPress={() =>
-            Alert.alert("Channel Options", undefined, [
-              {
-                text: "Burn All Messages",
-                style: "destructive",
-                onPress: handleBurnAll,
-              },
-              {
-                text: "Delete Channel",
-                style: "destructive",
-                onPress: handleDeleteChannel,
-              },
-              { text: "Cancel", style: "cancel" },
-            ])
-          }
-        >
-          <Ionicons
-            name="ellipsis-horizontal"
-            size={20}
-            color={Colors.textPrimary}
-          />
-        </Pressable>
+        {menuOpen ? (
+          <View style={styles.menuPopover}>
+            <Pressable style={styles.menuItem} onPress={handleBurnAll}><Ionicons name="eye-off-outline" size={15} color={Colors.textSecondary} /><Text style={styles.menuText}>Clear pending messages</Text></Pressable>
+            <Pressable style={styles.menuItem} onPress={handleDeleteChannel}><Ionicons name="trash-outline" size={15} color={Colors.danger} /><Text style={styles.menuDanger}>Delete channel</Text></Pressable>
+          </View>
+        ) : null}
       </View>
 
-      {/* Messages */}
-      <FlatList
-        inverted
-        data={reversed}
+      <View style={styles.chatArea}>
+        {desktop ? (
+          <View style={styles.noticeStrip}>
+            <Ionicons name="information-circle-outline" size={15} color={Colors.primary} />
+            <Text style={styles.noticeText}>Messages are local to this runtime. Nothing is delivered to another person.</Text>
+            <Text style={styles.expiryLabel}>EXPIRES AFTER VIEW</Text>
+          </View>
+        ) : null}
+        <FlatList
+          style={styles.messageList}
+          inverted
+          data={reversed}
           viewabilityConfig={VIEWABILITY_CONFIG}
           onViewableItemsChanged={handleViewableItemsChanged}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.messagesList}
-        showsVerticalScrollIndicator={false}
-        keyboardDismissMode="interactive"
-        keyboardShouldPersistTaps="handled"
-        scrollEnabled={!!messages.length}
-        renderItem={({ item }) => <MessageBubble message={item} />}
-        ListEmptyComponent={
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={[styles.messagesList, desktop && styles.messagesListDesktop]}
+          showsVerticalScrollIndicator={false}
+          keyboardDismissMode="interactive"
+          keyboardShouldPersistTaps="handled"
+          scrollEnabled={!!messages.length}
+          renderItem={({ item }) => <MessageBubble message={item} />}
+          ListEmptyComponent={
             <View style={styles.emptyChat}>
-              <Ionicons name="lock-closed" size={24} color={Colors.textMuted} />
-              <Text style={styles.emptyChatText}>
-                Messages disappear after you see them.
-              </Text>
-              <Text style={styles.emptyChatSub}>
-                Nothing is stored on this device or sent to a server.
-              </Text>
+              <View style={styles.emptyGlyph}><Ionicons name="eye-off-outline" size={22} color={Colors.primary} /></View>
+              <Text style={styles.emptyEyebrow}>THIS CHANNEL HAS NO HISTORY</Text>
+              <Text style={styles.emptyChatText}>Write something worth the moment.</Text>
+              <Text style={styles.emptyChatSub}>Each local message disappears about 1.2 seconds after first becoming visible.</Text>
             </View>
-        }
-      />
+          }
+        />
+      </View>
 
-      {/* Input */}
-      <View
-        style={[
-          styles.inputBar,
-          { paddingBottom: (Platform.OS === "web" ? 34 : insets.bottom) + 8 },
-        ]}
-      >
-        <View style={styles.inputBox}>
-          <TextInput
-            ref={inputRef}
-            style={styles.input}
-            placeholder="Private message — view once"
-            placeholderTextColor={Colors.textMuted}
-            value={text}
-            onChangeText={setText}
-            multiline
-            maxLength={500}
-            returnKeyType="default"
-            onSubmitEditing={Platform.OS === "web" ? handleSend : undefined}
-          />
+      <View style={[styles.inputOuter, { paddingBottom: Platform.OS === "web" ? (desktop ? 22 : 14) : insets.bottom + 8 }]}>
+        <View style={styles.inputShell}>
+          <View style={styles.inputBox}>
+            <TextInput
+              ref={inputRef}
+              style={styles.input}
+              placeholder="Write a message for this moment"
+              placeholderTextColor={Colors.textMuted}
+              value={text}
+              onChangeText={setText}
+              multiline
+              maxLength={500}
+              returnKeyType="default"
+              onKeyPress={handleKeyPress}
+              accessibilityLabel="Local message"
+            />
+          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel="Send local message" style={({ pressed }) => [styles.sendBtn, !text.trim() && styles.sendBtnDisabled, pressed && !!text.trim() && styles.pressed]} onPress={() => { void handleSend(); }} disabled={!text.trim()}>
+            <Ionicons name="arrow-up" size={20} color={text.trim() ? Colors.background : Colors.textMuted} />
+          </Pressable>
         </View>
-        <Pressable
-          style={({ pressed }) => [
-            styles.sendBtn,
-            !text.trim() && styles.sendBtnDisabled,
-            { opacity: pressed && !!text.trim() ? 0.8 : 1 },
-          ]}
-          onPress={handleSend}
-          disabled={!text.trim()}
-        >
-          <Ionicons
-            name="arrow-up"
-            size={20}
-            color={text.trim() ? Colors.background : Colors.textMuted}
-          />
-        </Pressable>
+        <Text style={styles.composerNote}>{text.length}/500 <Text style={styles.composerDot}>·</Text> {Platform.OS === "web" ? "Enter to send, Shift+Enter for a line break" : "Local to this session only"}</Text>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  notFound: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-  },
-  notFoundText: {
-    fontSize: 16,
-    color: Colors.textSecondary,
-    fontFamily: "Inter_500Medium",
-  },
-  backLink: {
-    fontSize: 15,
-    color: Colors.primary,
-    fontFamily: "Inter_500Medium",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    gap: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerCenter: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  headerAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: Colors.surfaceHigh,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerAvatarText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: Colors.primary,
-    fontFamily: "Inter_600SemiBold",
-  },
-  headerName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: Colors.textPrimary,
-    fontFamily: "Inter_600SemiBold",
-  },
-  headerStatus: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  headerStatusDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: Colors.green,
-  },
-  headerStatusDotPulse: {
-    backgroundColor: Colors.primary,
-  },
-  headerStatusText: {
-    fontSize: 11,
-    color: Colors.textMuted,
-    fontFamily: "Inter_400Regular",
-  },
-  menuBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  messagesList: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    flexGrow: 1,
-  },
-  msgRow: {
-    marginBottom: 4,
-    flexDirection: "row",
-  },
-  msgRowMe: {
-    justifyContent: "flex-end",
-  },
-  msgRowThem: {
-    justifyContent: "flex-start",
-  },
-  bubble: {
-    maxWidth: "78%",
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 4,
-  },
-  bubbleMe: {
-    backgroundColor: Colors.sent,
-    borderWidth: 1,
-    borderColor: Colors.sentBorder,
-    borderBottomRightRadius: 5,
-  },
-  bubbleThem: {
-    backgroundColor: Colors.received,
-    borderWidth: 1,
-    borderColor: Colors.receivedBorder,
-    borderBottomLeftRadius: 5,
-  },
-  msgText: {
-    fontSize: 15,
-    lineHeight: 22,
-    fontFamily: "Inter_400Regular",
-  },
-  msgTextMe: {
-    color: Colors.textPrimary,
-  },
-  msgTextThem: {
-    color: Colors.textPrimary,
-  },
-  msgMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    gap: 5,
-  },
-  msgTime: {
-    fontSize: 10,
-    fontFamily: "Inter_400Regular",
-  },
-  msgTimeMe: {
-    color: Colors.textMuted,
-  },
-  msgTimeThem: {
-    color: Colors.textMuted,
-  },
-  emptyChat: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 60,
-  },
-  emptyChatText: {
-    fontSize: 14,
-    color: Colors.textMuted,
-    fontFamily: "Inter_400Regular",
-    textAlign: "center",
-  },
-  emptyChatSub: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    fontFamily: "Inter_400Regular",
-    opacity: 0.7,
-  },
-  inputBar: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
-    backgroundColor: Colors.background,
-  },
-  inputBox: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    borderRadius: 22,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    maxHeight: 120,
-  },
-  input: {
-    fontSize: 15,
-    color: Colors.textPrimary,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 21,
-  },
-  sendBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: Colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  sendBtnDisabled: {
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
+  container: { flex: 1, backgroundColor: Colors.background },
+  notFound: { flex: 1, backgroundColor: Colors.background, alignItems: "center", justifyContent: "center", gap: 13, padding: 24 },
+  notFoundMark: { width: 46, height: 46, borderRadius: 16, backgroundColor: Colors.dangerGlow, alignItems: "center", justifyContent: "center" },
+  notFoundText: { fontSize: 16, color: Colors.textSecondary, fontFamily: "Inter_500Medium", textAlign: "center" },
+  backLink: { fontSize: 14, color: Colors.primary, fontFamily: "Inter_600SemiBold", padding: 8 },
+  header: { zIndex: 4, paddingHorizontal: 20, paddingBottom: 13, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  headerInner: { width: "100%", maxWidth: 1000, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 14 },
+  backBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, alignItems: "center", justifyContent: "center" },
+  headerCenter: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12, minWidth: 0 },
+  headerAvatar: { width: 42, height: 42, borderRadius: 14, backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border, alignItems: "center", justifyContent: "center" },
+  headerAvatarText: { fontSize: 16, fontFamily: "Inter_700Bold", color: Colors.primary },
+  headerIdentity: { gap: 4 },
+  headerName: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.textPrimary },
+  headerStatus: { flexDirection: "row", alignItems: "center", gap: 6 },
+  headerStatusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.primary },
+  headerStatusText: { fontSize: 11, color: Colors.textSecondary, fontFamily: "Inter_400Regular" },
+  menuBtn: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 12 },
+  menuPopover: { position: "absolute", top: 77, right: 22, width: 230, padding: 6, borderRadius: 11, backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border, zIndex: 10, elevation: 8 },
+  menuItem: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 11, paddingVertical: 12 },
+  menuText: { color: Colors.textPrimary, fontFamily: "Inter_500Medium", fontSize: 12 },
+  menuDanger: { color: Colors.danger, fontFamily: "Inter_500Medium", fontSize: 12 },
+  chatArea: { flex: 1, width: "100%", maxWidth: 1000, alignSelf: "center", minHeight: 0 },
+  noticeStrip: { marginTop: 17, paddingHorizontal: 13, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.borderLight, borderRadius: 8 },
+  noticeText: { flex: 1, color: Colors.textSecondary, fontSize: 11, fontFamily: "Inter_400Regular" },
+  expiryLabel: { color: Colors.primary, fontSize: 8, fontFamily: "Inter_700Bold", letterSpacing: 1.2 },
+  messageList: { flex: 1 },
+  messagesList: { paddingHorizontal: 20, paddingVertical: 18, flexGrow: 1 },
+  messagesListDesktop: { paddingHorizontal: 6, paddingVertical: 22 },
+  msgRow: { marginBottom: 9, flexDirection: "row" },
+  msgRowMe: { justifyContent: "flex-end" },
+  msgRowThem: { justifyContent: "flex-start" },
+  bubble: { maxWidth: "78%", minWidth: 120, borderRadius: 15, paddingHorizontal: 15, paddingVertical: 11, gap: 8 },
+  bubbleMe: { backgroundColor: Colors.sent, borderWidth: 1, borderColor: Colors.sentBorder, borderBottomRightRadius: 4 },
+  bubbleThem: { backgroundColor: Colors.received, borderWidth: 1, borderColor: Colors.receivedBorder, borderBottomLeftRadius: 4 },
+  msgText: { fontSize: 14, lineHeight: 21, color: Colors.textPrimary, fontFamily: "Inter_400Regular" },
+  msgMeta: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 5 },
+  msgTime: { color: Colors.textMuted, fontSize: 9, fontFamily: "Inter_400Regular" },
+  emptyChat: { flex: 1, alignItems: "center", justifyContent: "center", gap: 11, paddingHorizontal: 28, paddingVertical: 80 },
+  emptyGlyph: { width: 54, height: 54, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: Colors.primaryFaint, borderWidth: 1, borderColor: Colors.border },
+  emptyEyebrow: { color: Colors.primary, fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 1.8, textAlign: "center" },
+  emptyChatText: { color: Colors.textPrimary, fontSize: 18, fontFamily: "Inter_500Medium", textAlign: "center" },
+  emptyChatSub: { color: Colors.textSecondary, fontSize: 12, lineHeight: 19, fontFamily: "Inter_400Regular", maxWidth: 370, textAlign: "center" },
+  inputOuter: { borderTopWidth: 1, borderTopColor: Colors.borderLight, paddingHorizontal: 20, paddingTop: 13 },
+  inputShell: { width: "100%", maxWidth: 1000, alignSelf: "center", flexDirection: "row", alignItems: "flex-end", gap: 10 },
+  inputBox: { flex: 1, backgroundColor: Colors.surface, borderRadius: 13, paddingHorizontal: 15, paddingVertical: 10, borderWidth: 1, borderColor: Colors.border, maxHeight: 120 },
+  input: { fontSize: 14, color: Colors.textPrimary, fontFamily: "Inter_400Regular", lineHeight: 21, minHeight: 23 },
+  sendBtn: { width: 42, height: 42, borderRadius: 13, backgroundColor: Colors.primary, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  sendBtnDisabled: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
+  pressed: { opacity: 0.72 },
+  composerNote: { width: "100%", maxWidth: 1000, alignSelf: "center", color: Colors.textMuted, fontFamily: "Inter_400Regular", fontSize: 10, marginTop: 7, marginLeft: 3 },
+  composerDot: { color: Colors.primary },
 });
