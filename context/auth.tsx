@@ -5,11 +5,20 @@ import React, {
   useCallback,
   ReactNode,
 } from "react";
-import { computeCredentialHash, hashToDnaKey, DnaKey } from "@/utils/dna";
+import {
+  computeCredentialHash,
+  createCredentialMaterial,
+  CREDENTIAL_KDF,
+  CREDENTIAL_KDF_ITERATIONS,
+} from "@/utils/dna";
+import type { DnaKey } from "@/utils/dna";
 import { safeCompare, resetRateLimit } from "@/utils/security";
 
 export type StoredUser = {
   username: string;
+  algorithm: typeof CREDENTIAL_KDF;
+  iterations: typeof CREDENTIAL_KDF_ITERATIONS;
+  salt: string;
   hash: string;
   dnaKey: DnaKey;
   createdAt: string;
@@ -20,7 +29,7 @@ type AuthContextType = {
   hasAccount: boolean;
   isAuthenticated: boolean;
   user: StoredUser | null;
-  register: (username: string, passphrase: string) => Promise<{ error?: string }>;
+  register: (username: string, passphrase: string) => Promise<{ error?: string; dnaKey?: DnaKey }>;
   login: (username: string, passphrase: string) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
   wipeAll: () => Promise<void>;
@@ -34,24 +43,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<StoredUser | null>(() => inMemoryUser);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  const register = useCallback(async (username: string, passphrase: string): Promise<{ error?: string }> => {
+  const register = useCallback(async (username: string, passphrase: string): Promise<{ error?: string; dnaKey?: DnaKey }> => {
     try {
       if (inMemoryUser) return { error: "An identity already exists in this session." };
 
-      const hash = await computeCredentialHash(username, passphrase);
-      const dnaKey = hashToDnaKey(hash);
+      const credential = await createCredentialMaterial(passphrase);
 
       const newUser: StoredUser = {
-        username,
-        hash,
-        dnaKey,
+        username: username.trim(),
+        algorithm: credential.algorithm,
+        iterations: credential.iterations,
+        salt: credential.salt,
+        hash: credential.hash,
+        dnaKey: credential.dnaKey,
         createdAt: new Date().toISOString(),
       };
 
       inMemoryUser = newUser;
       setUser(newUser);
       setIsAuthenticated(true);
-      return {};
+      return { dnaKey: credential.dnaKey };
     } catch (e) {
       return { error: "Registration failed. Please try again." };
     }
@@ -67,8 +78,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: "Identity not recognised." };
       }
 
-      // Hash the provided credentials and compare
-      const hash = await computeCredentialHash(username, passphrase);
+      if (
+        stored.algorithm !== CREDENTIAL_KDF ||
+        stored.iterations !== CREDENTIAL_KDF_ITERATIONS ||
+        !stored.salt
+      ) {
+        return { error: "This identity needs to be reset before it can be unlocked." };
+      }
+
+      const hash = await computeCredentialHash(passphrase, stored.salt);
       if (!safeCompare(hash, stored.hash)) {
         return { error: "Incorrect passphrase." };
       }

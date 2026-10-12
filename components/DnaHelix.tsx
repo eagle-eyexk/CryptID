@@ -17,7 +17,7 @@ const DOT_SIZE = 13;
 const BAR_HEIGHT = 2;
 
 type RungProps = {
-  phase: Animated.SharedValue<number>;
+  phase: { value: number };
   index: number;
   color1: string;
   color2: string;
@@ -90,7 +90,7 @@ export default function DnaHelix({
       -1,
       false
     );
-  }, [speed]);
+  }, [phase, speed]);
 
   const scale = size === "large" ? 1 : size === "medium" ? 0.78 : 0.56;
   const containerHeight = RUNG_COUNT * RUNG_SPACING + DOT_SIZE;

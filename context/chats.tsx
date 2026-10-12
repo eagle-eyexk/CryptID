@@ -5,6 +5,7 @@ import React, {
   useCallback,
   ReactNode,
 } from "react";
+import * as Crypto from "expo-crypto";
 
 export type Message = {
   id: string;
@@ -41,8 +42,7 @@ export function ChatsProvider({ children }: { children: ReactNode }) {
 
   const createConversation = useCallback(
     (name: string, alias: string): string => {
-      const id =
-        Date.now().toString() + Math.random().toString(36).substr(2, 9);
+      const id = Crypto.randomUUID();
       const conv: Conversation = {
         id,
         name,
@@ -70,10 +70,10 @@ export function ChatsProvider({ children }: { children: ReactNode }) {
   const sendMessage = useCallback(
     async (convId: string, text: string) => {
       const now = Date.now();
+      const msgId = Crypto.randomUUID();
       setConversations((prev) => {
         const updated = prev.map((conv) => {
           if (conv.id !== convId) return conv;
-          const msgId = now.toString() + Math.random().toString(36).substr(2, 9);
           const userMsg: Message = {
             id: msgId,
             text,

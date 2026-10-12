@@ -27,7 +27,7 @@ import {
   recordFailedAttempt,
   resetRateLimit,
 } from "@/utils/security";
-import { generateDnaKey, DEFAULT_DNA_COLORS } from "@/utils/dna";
+import { DEFAULT_DNA_COLORS } from "@/utils/dna";
 import type { DnaKey } from "@/utils/dna";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -132,20 +132,7 @@ function RegisterScreen({
   const [showPass, setShowPass] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [previewDna, setPreviewDna] = useState<DnaKey | null>(null);
   const { shake, trigger } = useShakeAnim();
-
-  // Live DNA preview while typing
-  useEffect(() => {
-    if (username.length >= 3 && passphrase.length >= 4) {
-      const t = setTimeout(() => {
-        generateDnaKey(username, passphrase).then(setPreviewDna);
-      }, 400);
-      return () => clearTimeout(t);
-    } else {
-      setPreviewDna(null);
-    }
-  }, [username, passphrase]);
 
   const strength = passphraseStrength(passphrase);
 
@@ -158,15 +145,17 @@ function RegisterScreen({
     if (passphrase !== confirm) { setError("Passphrases do not match."); trigger(); return; }
 
     setIsLoading(true);
-    const dnaKey = await generateDnaKey(username, passphrase);
     const result = await register(username.trim(), passphrase);
     setIsLoading(false);
 
     if (result.error) {
       setError(result.error);
       trigger();
+    } else if (result.dnaKey) {
+      onReveal(result.dnaKey, username.trim());
     } else {
-      onReveal(dnaKey, username.trim());
+      setError("Registration failed. Please try again.");
+      trigger();
     }
   };
 
@@ -183,9 +172,9 @@ function RegisterScreen({
       {/* DNA Preview */}
       <View style={styles.helixWrapper}>
         <DnaHelix
-          colorPairs={previewDna?.colorPairs ?? DEFAULT_DNA_COLORS}
+          colorPairs={DEFAULT_DNA_COLORS}
           size="medium"
-          speed={previewDna ? 4000 : 7000}
+          speed={7000}
         />
       </View>
 

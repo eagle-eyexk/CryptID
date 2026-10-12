@@ -7,39 +7,32 @@ type RateEntry = { attempts: number; lockUntil?: number; windowStart: number };
 let rateEntry: RateEntry | null = null;
 
 export async function checkRateLimit(): Promise<{ allowed: boolean; remainingSecs: number }> {
-  try {
-    const entry = rateEntry;
-    if (!entry) return { allowed: true, remainingSecs: 0 };
+  const entry = rateEntry;
+  if (!entry) return { allowed: true, remainingSecs: 0 };
 
-    // Window expired — reset silently
-    if (Date.now() - entry.windowStart > 10 * 60_000) {
-      rateEntry = null;
-      return { allowed: true, remainingSecs: 0 };
-    }
-    // Active lockout
-    if (entry.lockUntil && Date.now() < entry.lockUntil) {
-      const secs = Math.ceil((entry.lockUntil - Date.now()) / 1000);
-      return { allowed: false, remainingSecs: secs };
-    }
-    if (entry.attempts >= MAX_ATTEMPTS) {
-      const lockUntil = Date.now() + LOCKOUT_MS;
-      rateEntry = { ...entry, lockUntil };
-      return { allowed: false, remainingSecs: 30 };
-    }
-    return { allowed: true, remainingSecs: 0 };
-  } catch {
+  // This in-memory limit is UI friction, not server-enforced authentication.
+  if (Date.now() - entry.windowStart > 10 * 60_000) {
+    rateEntry = null;
     return { allowed: true, remainingSecs: 0 };
   }
+  if (entry.lockUntil && Date.now() < entry.lockUntil) {
+    const secs = Math.ceil((entry.lockUntil - Date.now()) / 1000);
+    return { allowed: false, remainingSecs: secs };
+  }
+  if (entry.attempts >= MAX_ATTEMPTS) {
+    const lockUntil = Date.now() + LOCKOUT_MS;
+    rateEntry = { ...entry, lockUntil };
+    return { allowed: false, remainingSecs: 30 };
+  }
+  return { allowed: true, remainingSecs: 0 };
 }
 
 export async function recordFailedAttempt(): Promise<void> {
-  try {
-    const entry: RateEntry = rateEntry ?? { attempts: 0, windowStart: Date.now() };
-    const windowExpired = Date.now() - entry.windowStart > 10 * 60_000;
-    const attempts = windowExpired ? 1 : entry.attempts + 1;
-    const lockUntil = attempts >= MAX_ATTEMPTS ? Date.now() + LOCKOUT_MS : undefined;
-    rateEntry = { attempts, lockUntil, windowStart: windowExpired ? Date.now() : entry.windowStart };
-  } catch {}
+  const entry: RateEntry = rateEntry ?? { attempts: 0, windowStart: Date.now() };
+  const windowExpired = Date.now() - entry.windowStart > 10 * 60_000;
+  const attempts = windowExpired ? 1 : entry.attempts + 1;
+  const lockUntil = attempts >= MAX_ATTEMPTS ? Date.now() + LOCKOUT_MS : undefined;
+  rateEntry = { attempts, lockUntil, windowStart: windowExpired ? Date.now() : entry.windowStart };
 }
 
 export async function resetRateLimit(): Promise<void> {
@@ -97,7 +90,7 @@ export const STRENGTH_COLORS: Record<number, string> = {
 
 // ─── Timing-safe comparison ──────────────────────────────────────────────────
 
-/** Compare two strings in constant time to prevent timing attacks. */
+/** Reduces obvious early-exit timing differences; JavaScript cannot guarantee constant-time execution. */
 export function safeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
