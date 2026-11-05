@@ -42,6 +42,7 @@ export default function SettingsScreen() {
   const { conversations, clearAllMessages } = useChats();
   const [wipingAll, setWipingAll] = useState(false);
   const totalMessages = conversations.reduce((sum, channel) => sum + channel.messages.length, 0);
+  const dnaKey = user?.dnaKey;
 
   const confirm = (title: string, message: string, action: () => void, destructive = "Continue") => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -91,21 +92,21 @@ export default function SettingsScreen() {
           <Text style={styles.title}>Your session,{desktop ? "\nyour terms." : " your terms."}</Text>
           <Text style={styles.subtitle}>Nothing here follows you outside this running app.</Text>
 
-          {user ? (
+          {dnaKey ? (
             <View style={[styles.identityCard, desktop && styles.identityCardWide]}>
               <View style={styles.identityTop}>
                 <View style={styles.identityCopy}>
                   <Text style={styles.identityEyebrow}>CURRENT SESSION IDENTITY</Text>
                   <Text style={styles.username}>{user.username}</Text>
-                  <Text style={styles.fingerprint}>{user.dnaKey.fingerprint}</Text>
+                  <Text style={styles.fingerprint}>{dnaKey.fingerprint}</Text>
                   <View style={styles.identityStatus}><View style={styles.statusDot} /><Text style={styles.statusText}>Active in this runtime</Text></View>
                 </View>
-                <DnaHelix colorPairs={user.dnaKey.colorPairs} size="small" speed={5000} />
+                <DnaHelix colorPairs={dnaKey.colorPairs} size="small" speed={5000} />
               </View>
               <View style={styles.dnaBases}>
-                {user.dnaKey.bases.map((base, i) => (
-                  <View key={`${base}-${i}`} style={[styles.dnaBaseChip, { borderColor: `${user.dnaKey.colorPairs[i % user.dnaKey.colorPairs.length][0]}70` }]}>
-                    <Text style={[styles.dnaBaseText, { color: user.dnaKey.colorPairs[i % user.dnaKey.colorPairs.length][0] }]}>{base}</Text>
+                {dnaKey.bases.map((base, i) => (
+                  <View key={`${base}-${i}`} style={[styles.dnaBaseChip, { borderColor: `${dnaKey.colorPairs[i % dnaKey.colorPairs.length][0]}70` }]}>
+                    <Text style={[styles.dnaBaseText, { color: dnaKey.colorPairs[i % dnaKey.colorPairs.length][0] }]}>{base}</Text>
                   </View>
                 ))}
               </View>
@@ -116,7 +117,7 @@ export default function SettingsScreen() {
           <View style={[styles.overviewRow, !desktop && styles.overviewColumn]}>
             <View style={styles.overviewIntro}>
               <Text style={styles.overviewTitle}>A small footprint.</Text>
-              <Text style={styles.overviewCopy}>CryptId currently keeps identity, channels, and messages in JavaScript memory only.</Text>
+              <Text style={styles.overviewCopy}>The web account is shared across devices. Channels and messages remain local to this browser.</Text>
             </View>
             <View style={styles.stats}>
               <View style={styles.stat}><Text style={styles.statNum}>{conversations.length}</Text><Text style={styles.statLabel}>CHANNELS</Text></View>

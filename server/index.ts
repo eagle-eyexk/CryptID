@@ -8,10 +8,24 @@ const app = express();
 const log = console.log;
 
 function setupSecurityHeaders(app: express.Application) {
-  app.use((_req, res, next) => {
+  app.disable("x-powered-by");
+  app.use((req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
     res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+    res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+    if (
+      process.env.NODE_ENV === "production" &&
+      (req.secure || req.header("x-forwarded-proto")?.split(",")[0].trim() === "https")
+    ) {
+      res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+      res.setHeader(
+        "Content-Security-Policy",
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",
+      );
+    }
     next();
   });
 }
@@ -46,10 +60,18 @@ function setupCors(app: express.Application) {
 
   app.use((req, res, next) => {
     const origin = req.header("origin");
+    const allowedOrigin = origin
+      ? origins.has(origin) || isLocalDevelopmentOrigin(origin)
+      : false;
 
-    if (origin && (origins.has(origin) || isLocalDevelopmentOrigin(origin))) {
+    if (origin && !allowedOrigin) {
+      return res.status(403).json({ error: "Origin not allowed." });
+    }
+
+    if (origin && allowedOrigin) {
       res.vary("Origin");
       res.header("Access-Control-Allow-Origin", origin);
+      res.header("Access-Control-Allow-Credentials", "true");
       res.header(
         "Access-Control-Allow-Methods",
         "GET, POST, OPTIONS",
@@ -58,7 +80,7 @@ function setupCors(app: express.Application) {
     }
 
     if (req.method === "OPTIONS") {
-      return res.sendStatus(200);
+      return res.sendStatus(204);
     }
 
     next();
@@ -199,8 +221,36 @@ function configureExpoAndLanding(app: express.Application) {
   log("Expo routing: Checking expo-platform header on / and /manifest");
 }
 
+function configureProductionWeb(app: express.Application) {
+  const webBuild = path.resolve(process.cwd(), "dist");
+  const indexPath = path.join(webBuild, "index.html");
+  if (!fs.existsSync(indexPath)) {
+    throw new Error("Production web build is missing. Run npm run deploy:build first.");
+  }
+
+  app.use(
+    express.static(webBuild, {
+      index: false,
+      maxAge: "1h",
+      setHeaders: (res, filePath) => {
+        if (path.resolve(filePath) === indexPath) {
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        }
+      },
+    }),
+  );
+  app.get(/.*/, (req, res, next) => {
+    if (req.path.startsWith("/api")) return next();
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    return res.sendFile(indexPath, (error) => {
+      if (error) next(error);
+    });
+  });
+  log("Serving production web build with shared account API");
+}
+
 function setupErrorHandler(app: express.Application) {
-  app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+  app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
     const error = (err && typeof err === "object" ? err : {}) as {
       status?: number;
       statusCode?: number;
@@ -213,7 +263,7 @@ function setupErrorHandler(app: express.Application) {
         ? "Internal Server Error"
         : error.message || "Internal Server Error";
 
-    console.error("Internal Server Error:", err);
+    console.error(`REQUEST_FAILURE ${req.method} ${req.path} ${status}`);
 
     if (res.headersSent) {
       return next(err);
@@ -229,7 +279,11 @@ function setupErrorHandler(app: express.Application) {
   setupBodyParsing(app);
   setupRequestLogging(app);
 
-  configureExpoAndLanding(app);
+  if (process.env.NODE_ENV === "production") {
+    configureProductionWeb(app);
+  } else {
+    configureExpoAndLanding(app);
+  }
 
   const server = await registerRoutes(app);
 

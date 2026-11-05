@@ -1,0 +1,26 @@
+:root {
+  --cryptid-bg: #071716;
+  --cryptid-surface: #0d211f;
+  --cryptid-surface-raised: #122c29;
+  --cryptid-surface-high: #193a35;
+  --cryptid-border: #28504a;
+  --cryptid-border-soft: #1a3934;
+  --cryptid-primary: #67e1d2;
+  --cryptid-primary-soft: rgba(103, 225, 210, 0.08);
+  --cryptid-accent: #ff897c;
+  --cryptid-text: #e9f5ef;
+  --cryptid-secondary: #b0c9be;
+  --cryptid-muted: #8ba79a;
+  --cryptid-font: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.cryptid-chat-group {
+  color: var(--cryptid-text);
+  font-family: var(--cryptid-font);
+}
+
+.cryptid-chat-group *,
+.cryptid-chat-group *::before,
+.cryptid-chat-group *::after {
+  box-sizing: border-box;
+}

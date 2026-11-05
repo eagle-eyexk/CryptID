@@ -55,8 +55,8 @@ export default function ResponsiveTabBar({ state, navigation, descriptors }: Bot
         <View style={styles.sidebarFoot}>
           <View style={styles.statusDot} />
           <View>
-            <Text style={styles.sidebarStatus}>Memory only</Text>
-            <Text style={styles.sidebarSub}>Clears when session ends</Text>
+          <Text style={styles.sidebarStatus}>Shared account</Text>
+          <Text style={styles.sidebarSub}>Login expires after 24 hours</Text>
           </View>
         </View>
       ) : null}
