@@ -396,6 +396,84 @@ export function registerAuthRoutes(app: Express) {
     }
   });
 
+  app.get("/api/security/sessions", async (req, res) => {
+    setNoStore(res);
+    try {
+      const user = await currentSession(req, res);
+      if (!user) return res.status(401).json({ error: "Not signed in." });
+      const token = readCookie(req);
+      const currentTokenHash = token ? hashSessionToken(token) : "";
+      const result = await getPool().query(
+        `SELECT id, created_at, expires_at, token_hash = $2 AS is_current
+         FROM auth_sessions
+         WHERE user_id = $1 AND expires_at > now()
+         ORDER BY created_at DESC
+         LIMIT 25`,
+        [user.id, currentTokenHash],
+      );
+      return res.json({
+        sessions: result.rows.map((row) => ({
+          id: row.id,
+          createdAt: new Date(row.created_at).toISOString(),
+          expiresAt: new Date(row.expires_at).toISOString(),
+          current: row.is_current === true,
+        })),
+      });
+    } catch {
+      return reportAuthFailure(res, "session_list");
+    }
+  });
+
+  app.delete("/api/security/sessions/:sessionId", async (req, res) => {
+    setNoStore(res);
+    const sessionId = req.params.sessionId;
+    if (typeof sessionId !== "string" || !/^[0-9a-f-]{36}$/i.test(sessionId)) {
+      return res.status(404).json({ error: "Session not found." });
+    }
+    try {
+      const user = await currentSession(req, res);
+      if (!user) return res.status(401).json({ error: "Not signed in." });
+      const token = readCookie(req);
+      const currentTokenHash = token ? hashSessionToken(token) : "";
+      const result = await getPool().query(
+        `DELETE FROM auth_sessions
+         WHERE id = $1 AND user_id = $2
+         RETURNING user_id, token_hash`,
+        [sessionId, user.id],
+      );
+      if (!result.rows[0]) return res.status(404).json({ error: "Session not found." });
+      await recordSecurityEvent("session_revoked", user.id);
+      if (result.rows[0].token_hash === currentTokenHash) clearSessionCookie(req, res);
+      return res.status(204).end();
+    } catch {
+      return reportAuthFailure(res, "session_revoke");
+    }
+  });
+
+  app.get("/api/security/events", async (req, res) => {
+    setNoStore(res);
+    try {
+      const user = await currentSession(req, res);
+      if (!user) return res.status(401).json({ error: "Not signed in." });
+      const result = await getPool().query(
+        `SELECT event_type, created_at
+         FROM security_events
+         WHERE user_id = $1 AND expires_at > now()
+         ORDER BY created_at DESC
+         LIMIT 25`,
+        [user.id],
+      );
+      return res.json({
+        events: result.rows.map((row) => ({
+          eventType: row.event_type,
+          createdAt: new Date(row.created_at).toISOString(),
+        })),
+      });
+    } catch {
+      return reportAuthFailure(res, "security_events");
+    }
+  });
+
   app.post("/api/auth/logout", async (req, res) => {
     setNoStore(res);
     try {

@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/auth";
 import { useChats } from "@/context/chats";
+import { apiFetch } from "@/utils/api";
 
 function relativeTime(timestamp: number) {
   const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
@@ -25,7 +26,22 @@ export default function ChatsScreen() {
   const desktop = width >= 900;
   const { user } = useAuth();
   const { conversations, deleteConversation } = useChats();
+  const [publicDetails, setPublicDetails] = useState<number | null>(null);
   const sorted = [...conversations].sort((a, b) => b.createdAt - a.createdAt);
+
+  useEffect(() => {
+    let active = true;
+    apiFetch("/api/security/ghost-log")
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Public status unavailable.");
+        const data = (await response.json()) as { publicDetails?: unknown };
+        if (active && data.publicDetails === 0) setPublicDetails(0);
+      })
+      .catch(() => {
+        if (active) setPublicDetails(null);
+      });
+    return () => { active = false; };
+  }, []);
 
   function removeChannel(id: string, name: string) {
     if (typeof window !== "undefined" && window.confirm(`Remove “${name}” and its local previews from this browser?`)) {
@@ -82,7 +98,7 @@ export default function ChatsScreen() {
                 <Text style={styles.statusTitle}>Public ghost log</Text>
                 <Text style={styles.statusDescription}>Public disclosure only</Text>
               </View>
-              <Text style={[styles.statusValue, styles.zeroValue]}>0</Text>
+              <Text style={[styles.statusValue, styles.zeroValue]}>{publicDetails === null ? "—" : publicDetails}</Text>
             </View>
           </View>
 
